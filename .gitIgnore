@@ -1,0 +1,42 @@
+# Python backend
+**/__pycache__
+**/*.pyc
+**/venv
+backend/instance/*
+backend/*.db
+backend/.env
+backend/iris.db
+
+# Node/React frontend
+**/node_modules
+frontend/node_modules
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/build
+frontend/dist
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# IDE
+.vscode
+.idea
+**/*.swp
+**/*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ML models and large files
+backend/models
+**/*.pt
+**/*.pth
+**/*.h5
+
+# Logs
+**/*.log
+**/logs
