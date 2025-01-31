@@ -1,4 +1,8 @@
 import os
+import sys
+
+# ensures Python can find app.py in the same backend folder.
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from app import app, db
 
 def init_db():

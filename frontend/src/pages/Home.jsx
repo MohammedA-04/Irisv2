@@ -1,14 +1,16 @@
 import React from 'react';
-import WelcomeSection from '../components/dashboard/WelcomeSection';
-import QuickLinks from '../components/dashboard/QuickLinks';
-import RecentDetections from '../components/dashboard/RecentDetections';
 
 const Home = ({ user }) => {
   return (
-    <div className="max-w-6xl mx-auto">
-      <WelcomeSection username={user.username} />
-      <QuickLinks />
-      <RecentDetections />
+    <div className="min-h-screen bg-gradient-to-br from-green-400 to-green-200 flex items-center justify-center">
+      <div className="bg-white bg-opacity-90 rounded-3xl shadow-xl p-12 text-center">
+        <h1 className="text-4xl font-bold text-green-600 mb-4">
+          Hello, {user?.username || 'User'}!
+        </h1>
+        <p className="text-green-500 text-lg">
+          Welcome to your dashboard
+        </p>
+      </div>
     </div>
   );
 };

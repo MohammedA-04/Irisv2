@@ -27,8 +27,9 @@ def load_ml_models():
 # Initialize Flask app
 app = Flask(__name__)
 # Load environment variables
-app.config['ENV'] = os.environ.get('FLASK_ENV', 'development')
-app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', '1') == '1'
+# app.config['ENV'] = os.environ.get('FLASK_ENV', 'development')
+# app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', '1') == '1'
+app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///iris.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
