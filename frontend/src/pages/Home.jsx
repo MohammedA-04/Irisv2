@@ -1,15 +1,39 @@
 import React from 'react';
+import WelcomeSection from '../components/homeComp/WelcomeSection';
+import QuickLinks from '../components/homeComp/QuickLinks';
+import RecentDetections from '../components/homeComp/RecentDetections';
+import { useLocation } from 'react-router-dom';
 
-const Home = ({ user }) => {
+/**
+ * Home page component
+ * @returns {JSX.Element}
+ * @description Main landing page after successful login [(login -> otp ? register -> login -> otp) -> home]
+ */
+
+const Home = () => {
+  const location = useLocation();
+  console.log("Full location state:", location.state);
+  const username = location.state?.username;
+  console.log("Username from navigation state:", username);
+  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-400 to-green-200 flex items-center justify-center">
-      <div className="bg-white bg-opacity-90 rounded-3xl shadow-xl p-12 text-center">
-        <h1 className="text-4xl font-bold text-green-600 mb-4">
-          Hello, {user?.username || 'User'}!
-        </h1>
-        <p className="text-green-500 text-lg">
-          Welcome to your dashboard
-        </p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid gap-8">
+        {/* Welcome section */}
+        <WelcomeSection username={username} />
+
+        {/* Main content grid */}
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Left column */}
+          <div className="space-y-8">
+            <QuickLinks />
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-8">
+            <RecentDetections />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,15 @@ import { QRCodeSVG } from 'qrcode.react';
 import { API_URLS } from '../../config/api';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * OTPVerification component
+ * @Parent Login <- AuthTabs
+ * @returns {JSX.Element}
+ * @description component displays OTP verification form and handles OTP verification process.
+ */
+
 const OTPVerification = ({ username, otpSecret, onBack }) => {
+  console.log("This is OTPVerification.jsx");
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -14,6 +22,7 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
     setError('');
 
     try {
+      //* Sends OTP verification request
       const response = await fetch(API_URLS.verifyOtp, {
         method: 'POST',
         credentials: 'include',
@@ -28,8 +37,12 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
 
       const data = await response.json();
 
+      // 200+ Success: OTP verified
       if (response.ok) {
-        navigate('/');
+        navigate('/home', { 
+          replace: true, 
+          state: { username }
+        }); 
       } else {
         setError(data.message || 'Invalid OTP code');
       }

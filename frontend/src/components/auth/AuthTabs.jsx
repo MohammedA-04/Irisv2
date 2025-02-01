@@ -3,7 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Login from './Login';
 import Register from './Register';
 
+
+/**
+ * AuthTabs component
+ * @returns {JSX.Element}
+ * @description component displays <login/> and <register/> tabs.
+ */
 const AuthTabs = () => {
+  console.log("This is AuthTabs.jsx");
   const [activeTab, setActiveTab] = useState('login');
 
   return (
@@ -51,6 +58,7 @@ const AuthTabs = () => {
             transition={{ duration: 0.2 }}
             className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100"
           >
+            {/* default: <Login/> will be shown and highlighted */}
             {activeTab === 'login' ? <Login /> : <Register />}
           </motion.div>
         </AnimatePresence>

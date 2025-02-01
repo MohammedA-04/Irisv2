@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 const VerifyEmail = () => {
   const navigate = useNavigate();
   const [otp, setOtp] = useState('');
+  console.log("This is VerifyEmail.jsx");
 
   const handleSubmit = async (e) => {
     e.preventDefault();

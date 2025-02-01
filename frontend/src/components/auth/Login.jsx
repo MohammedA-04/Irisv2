@@ -7,6 +7,13 @@ import Notification from '../common/Notification';
 import { API_URLS } from '../../config/api';
 import OTPVerification from './OTPVerification';
 
+/**
+ * Login component
+ * @Parent AuthTabs
+ * @returns {JSX.Element}
+ * @description component displays login form and handles login process.
+ */
+
 const Login = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -22,7 +29,8 @@ const Login = () => {
     e.preventDefault();
     setError('');
     try {
-      console.log('Attempting login with:', formData);  // Debug log
+      // Attempting to login with user inputs {formData}
+      console.log('Attempting login with:', formData);  
       const response = await fetch(API_URLS.login, {
         method: 'POST',
         credentials: 'include',
@@ -33,11 +41,12 @@ const Login = () => {
         body: JSON.stringify(formData),
       });
 
-      // Log the full response details
+      // Logs response of login attempt
       console.log('Status:', response.status);
       console.log('Status Text:', response.statusText);
       console.log('Headers:', Object.fromEntries(response.headers.entries()));
 
+      //* Server response with: data: {$message: string, $requireOTP: boolean, $otpSecret: string}
       const data = await response.json();
       console.log('Response data:', data);
 
@@ -50,9 +59,12 @@ const Login = () => {
         } else {
           navigate('/');
         }
+
       } else if (response.status === 429) {
-        setLockoutUntil(new Date(data.lockoutUntil));
+        //* 429: Too many requests, incurs lockout
+        setLockoutUntil(new Date(data.lockoutUntil)); 
       } else {
+        //* 401: Unauthorized, login failure incurs 15 min lockout
         setFailedAttempts(prev => prev + 1);
         if (failedAttempts >= 4) {
           setLockoutUntil(new Date(Date.now() + 15 * 60 * 1000));
@@ -65,6 +77,7 @@ const Login = () => {
     }
   };
 
+  //* Updates corresponding field in formData 
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -72,6 +85,7 @@ const Login = () => {
     });
   };
 
+  //* Reset lockout state to end lockout
   const handleLockoutEnd = () => {
     setLockoutUntil(null);
     setFailedAttempts(0);
@@ -79,6 +93,7 @@ const Login = () => {
 
   return (
     <>
+      {/* Conditional render: either show OTPVerification or LockoutScreen */}
       {otpData ? (
         <OTPVerification
           username={otpData.username}
@@ -91,8 +106,10 @@ const Login = () => {
           onLockoutEnd={handleLockoutEnd}
         />
       ) : (
+        // Default render: allows user to login with usr/pass or googleAuth 
         <div className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* <form/>:  username, password, submit button */}
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
                 {error}

@@ -13,6 +13,7 @@ import AuthTabs from './components/auth/AuthTabs';
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  console.log("This is App.jsx");
 
   const PrivateRoute = ({ children }) => {
     return isAuthenticated ? children : <Navigate to="/login" />;
@@ -48,6 +49,7 @@ const App = () => {
                   </PrivateRoute>
                 } 
               />
+              <Route path="/home" element={<Home />} />
             </Routes>
           </main>
         </div>

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const VerifyOTP = () => {
+  console.log("This is VerifyOTP.jsx");
+
   const navigate = useNavigate();
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');

@@ -6,7 +6,15 @@ import Notification from '../common/Notification';
 import { API_URLS } from '../../config/api';
 import OTPSetup from './OTPSetup';
 
+/**
+ * Register component
+ * @Parent AuthTabs
+ * @returns {JSX.Element}
+ * @description component displays registration form and handles registration process.
+ */
+
 const Register = () => {
+  
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
@@ -27,6 +35,7 @@ const Register = () => {
   });
   const maxRetries = 3;
 
+  //* RegEX: checks $password strength
   const checkPasswordStrength = (password) => {
     const hasLower = /[a-z]/.test(password);
     const hasUpper = /[A-Z]/.test(password);
@@ -52,18 +61,20 @@ const Register = () => {
 
     setPasswordStrength({
       score: strength,
-      feedback: strengthClasses[strength].text,
+      feedback: strengthClasses[strength].text, //* ex: "Very weak"
       className: `h-2 rounded-full mt-2 ${strengthClasses[strength].class}`,
       textColor: strengthClasses[strength].color
     });
   };
 
+  //* Handles registration form submission
   const handleSubmit = async (e, retryCount = 0) => {
+    // Prevent page reload and resets noti's
     e.preventDefault();
     setNotification({ message: '', type: 'success' });
     setIsSubmitting(true);
     
-    // Basic validation
+    // Basic validation: unfilled fields
     if (!formData.username || !formData.email || !formData.password) {
       setNotification({
         message: 'Please fill in all fields',
@@ -73,7 +84,7 @@ const Register = () => {
       return;
     }
 
-    // Email format validation
+    // Email format validation: check if email is valid
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setNotification({
@@ -85,6 +96,7 @@ const Register = () => {
     }
 
     try {
+      //* Sends registration rquest for possible new user 
       const response = await fetch(API_URLS.register, {
         method: 'POST',
         credentials: 'include',
@@ -99,16 +111,18 @@ const Register = () => {
         }),
       });
 
+      // Server response: {user: string, secret: string}
       const data = await response.json();
 
+      //* 200+ Sucess: new user entry
       if (response.ok) {
+        
         // Show OTP setup instructions
         const otpSecret = data.otpSecret;
-        console.log('Received OTP secret:', otpSecret);  // Debug logging
+        console.log('Received OTP secret:', otpSecret);  
         console.log('OTP Setup Instructions:', {
           username: formData.username,
           secret: otpSecret,
-          username: formData.username
         });
         
         // Show QR code and instructions
@@ -118,6 +132,7 @@ const Register = () => {
           username: formData.username
         });
         
+        // Success notification banner
         setNotification({
           message: 'Account created successfully! Redirecting to login...',
           type: 'success'
@@ -125,8 +140,10 @@ const Register = () => {
         setTimeout(() => {
           navigate('/login');
         }, 2000);
-      } else {
-        // Handle specific error cases
+      } 
+      
+        else {
+        // Switch Conditions: Handle specific error cases
         let errorMessage = data.message;
         switch (response.status) {
           case 400:
@@ -165,6 +182,7 @@ const Register = () => {
     }
   };
 
+  //* Handles input changes in registration form
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -180,11 +198,14 @@ const Register = () => {
   return (
     <>
       <div className="space-y-6">
+        {/* Notification banner: renders based on registration status */}
         <Notification
           message={notification.message}
           type={notification.type}
           onClose={() => setNotification({ message: '', type: 'success' })}
         />
+
+        {/* <form/>: username, email, password, submit button */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

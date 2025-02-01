@@ -2,6 +2,7 @@ import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const OTPSetup = ({ secret, qrCode, onClose }) => {
+  console.log("This is OTPSetup.jsx");
   // Debug logging when component mounts
   React.useEffect(() => {
     console.log('OTPSetup mounted with:', {
