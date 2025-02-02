@@ -22,7 +22,7 @@ const App = () => {
   return (
     <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID}>
       <Router>
-        <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-100 to-teal-200">
+        <div className="min-h-screen bg-gray-50">
           <Navbar 
             isAuthenticated={isAuthenticated} 
             logout={() => setIsAuthenticated(false)} 

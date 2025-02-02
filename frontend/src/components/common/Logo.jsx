@@ -1,14 +1,13 @@
 import React from 'react';
-import logoSvg from '../../assets/logo.svg';
-// import logoPng from '../../assets/logo.png'; // Uncomment if you want to use PNG
+import { Link } from 'react-router-dom';
 
 const Logo = () => {
   return (
-    <div className="flex items-center">
-      <span className="text-lg font-bold text-black">
-        IRIS<span className="text-black">AI</span>
+    <Link to="/" className="flex items-center">
+      <span className="text-2xl tracking-tight font-bold" style={{ fontFamily: 'var(--font-clash-display, sans-serif)' }}>
+        Project-<span className="font-bold">Iris</span>.com
       </span>
-    </div>
+    </Link>
   );
 };
 

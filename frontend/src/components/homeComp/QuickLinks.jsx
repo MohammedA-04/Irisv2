@@ -1,27 +1,75 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  BookOpenIcon, 
+  BeakerIcon, 
+  EyeIcon 
+} from '@heroicons/react/24/outline';
 
 const QuickLinks = () => {
+  const links = [
+    {
+      title: "Learn More About Deepfakes",
+      icon: <BookOpenIcon className="w-6 h-6" />,
+      href: "/learn",
+      arrow: true
+    },
+    {
+      title: "Try Our Dima Model",
+      icon: <BeakerIcon className="w-6 h-6" />,
+      href: "/predict/image",
+      arrow: true
+    },
+    {
+      title: "See Our Mission",
+      icon: <EyeIcon className="w-6 h-6" />,
+      href: "/about",
+      arrow: true
+    }
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div className="bg-blue-100 rounded-lg p-6 shadow-md hover:shadow-lg transition duration-300">
-        <h3 className="text-xl font-semibold text-blue-800 mb-2">Recent Activity</h3>
-        <p className="text-blue-600">View your recent detection history</p>
-      </div>
-      
-      <div className="bg-green-100 rounded-lg p-6 shadow-md hover:shadow-lg transition duration-300">
-        <h3 className="text-xl font-semibold text-green-800 mb-2">Try Detection</h3>
-        <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-300">
-          Start Detection
-        </button>
-      </div>
-      
-      <div className="bg-purple-100 rounded-lg p-6 shadow-md hover:shadow-lg transition duration-300">
-        <h3 className="text-xl font-semibold text-purple-800 mb-2">Quick Links</h3>
-        <ul className="space-y-2 text-purple-600">
-          <li>📊 Statistics</li>
-          <li>⚙️ Settings</li>
-          <li>📝 Documentation</li>
-        </ul>
+    <div className="container mx-auto px-4 mb-8">
+      <h2 className="text-xl font-bold mb-6">Quick Links</h2>
+      <div className="grid grid-cols-2 gap-4">
+        {links.map((link, index) => (
+          <Link
+            key={index}
+            to={link.href}
+            className="group relative flex items-center justify-between bg-white/50 backdrop-blur-sm 
+                     border border-gray-200 rounded-2xl p-6 hover:bg-white 
+                     transition-all duration-300 hover:shadow-lg"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-green-100 rounded-xl">
+                {link.icon}
+              </div>
+              <span className="text-lg font-medium" style={{ fontFamily: 'var(--font-satoshi, sans-serif)' }}>
+                {link.title}
+              </span>
+            </div>
+
+            {/* Right side icons */}
+            <div className="flex items-center">
+              {link.lightBulb && (
+                <span className="text-2xl">💡</span>
+              )}
+              {link.arrow && (
+                <svg className="w-6 h-6 transform group-hover:translate-x-1 transition-transform" 
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              )}
+              {link.target && (
+                <span className="text-2xl">🎯</span>
+              )}
+            </div>
+          </Link>
+        ))}
+        {/* Empty spot in the grid */}
+        <div className="border border-dashed border-gray-200 rounded-2xl p-6 flex items-center justify-center text-gray-400">
+          Coming Soon
+        </div>
       </div>
     </div>
   );

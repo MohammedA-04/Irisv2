@@ -11,11 +11,16 @@ const WelcomeSection = ({ username }) => {
   console.log("WelcomeSection received username:", username);
   
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h1 className="text-2xl font-bold mb-2">
-        Welcome, {username ? username : 'User'}!
+    <div className="py-8">
+      <h1 className="text-6xl font-bold tracking-tight">
+        <span className="text-gray-800">Hello, </span>
+        <span className="bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent">
+          {username || 'User'}
+        </span>
       </h1>
-      <p className="text-gray-600 mt-2">Welcome back to your dashboard.</p>
+      <p className="mt-4 text-lg text-gray-600" style={{ fontFamily: 'var(--font-satoshi, sans-serif)' }}>
+        Welcome back to your dashboard.
+      </p>
     </div>
   );
 };

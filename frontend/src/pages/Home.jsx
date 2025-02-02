@@ -2,6 +2,8 @@ import React from 'react';
 import WelcomeSection from '../components/homeComp/WelcomeSection';
 import QuickLinks from '../components/homeComp/QuickLinks';
 import RecentDetections from '../components/homeComp/RecentDetections';
+import StatsSection from '../components/homeComp/StatsSection';
+import SolutionsStats from '../components/homeComp/SolutionStats';
 import { useLocation } from 'react-router-dom';
 
 /**
@@ -12,31 +14,26 @@ import { useLocation } from 'react-router-dom';
 
 const Home = () => {
   const location = useLocation();
-  console.log("Full location state:", location.state);
   const username = location.state?.username;
-  console.log("Username from navigation state:", username);
   
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="grid gap-8">
-        {/* Welcome section */}
+    <div className="w-full space-y-4">
+      {/* Welcome section in container */}
+      <div className="container mx-auto px-4">
         <WelcomeSection username={username} />
-
-        {/* Main content grid */}
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Left column */}
-          <div className="space-y-8">
-            <QuickLinks />
-          </div>
-
-          {/* Right column */}
-          <div className="space-y-8">
-            <RecentDetections />
-          </div>
-        </div>
       </div>
+
+      <QuickLinks />
+
+      <RecentDetections />
+
+      {/* Full-width Stats Section */}
+      <StatsSection />
+
+      {/* Full-width Solutions Stats Section */}
+      <SolutionsStats />
     </div>
   );
 };
 
-export default Home; 
+export default Home;

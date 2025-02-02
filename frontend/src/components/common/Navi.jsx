@@ -23,23 +23,30 @@ const Navi = () => {
 
   return (
     <div 
-      className="relative"
+      className="relative cursor-pointer"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false);
         setIsPredictHovering(false);
       }}
     >
-      <button className="flex items-center justify-center p-1 rounded-md hover:bg-gray-100 focus:outline-none">
-        <div className="grid grid-cols-3 gap-0.5 p-1">
-          {[...Array(9)].map((_, i) => (
-            <div
-              key={i}
-              className="w-1 h-1 rounded-sm bg-black"
-            />
-          ))}
-        </div>
-      </button>
+      <div className="grid grid-cols-2 gap-1">
+        {[...Array(4)].map((_, i) => (
+          <div
+            key={i}
+            className={`w-2 h-2 rounded-sm transition-all duration-300 ${
+              isHovering ? 'bg-black' : 'bg-white'
+            } ${
+              isHovering ? [
+                'hover:translate-y-1 hover:bg-rose-500',
+                'hover:-translate-x-1 hover:bg-yellow-500',
+                'hover:translate-x-1 hover:bg-emerald-500',
+                'hover:-translate-y-1 hover:bg-blue-500'
+              ][i] : ''
+            }`}
+          />
+        ))}
+      </div>
 
       <Transition
         show={isHovering}
