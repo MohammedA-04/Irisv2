@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useContext} from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { API_URLS } from '../../config/api';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from './AuthContext';
 
 /**
  * OTPVerification component
@@ -16,6 +17,9 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const otpAuthUrl = `otpauth://totp/IrisApp:${username}?secret=${otpSecret}&issuer=IrisApp`;
+
+  // Use AuthContext to set authentication state; avoid prop drilling!
+  const { setIsAuthenticated } = useContext(AuthContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,8 +41,9 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
 
       const data = await response.json();
 
-      // 200+ Success: OTP verified
+      // 200+ Success: OTP verified -> Redirect to home
       if (response.ok) {
+        setIsAuthenticated(true);
         navigate('/home', { 
           replace: true, 
           state: { username }
@@ -70,7 +75,10 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
         </div>
       </div>
 
+      {/* Form Contains: Err Msg, OTP Input, Submit & Back Button */}
       <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {/* Conditional Render: Err Msg */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
             {error}

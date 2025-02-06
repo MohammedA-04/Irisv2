@@ -15,3 +15,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 } 
+
+select option:disabled {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+select option:disabled:hover {
+  background-color: #f3f4f6;
+}

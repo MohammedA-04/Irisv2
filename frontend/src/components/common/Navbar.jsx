@@ -1,14 +1,25 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AuthContext } from '../auth/AuthContext';
 import Logo from './Logo';
 import Navi from './Navi';
 
-const Navbar = ({ isAuthenticated, logout }) => {
+
+/**
+ * Navbar component
+ * @Parent App
+ * @returns {JSX.Element}
+ * @description Navbar component displays navigation links and authentication buttons.
+ */
+const Navbar = ({ logout }) => {
   const navigate = useNavigate();
+  const { isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+    // invert authentication state
+    setIsAuthenticated(false);
   };
 
   return (
