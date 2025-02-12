@@ -132,18 +132,15 @@ def register():
             return jsonify({"message": "Username already taken"}), 400
 
         try:
-            # Generate OTP secret for QR code
-            otp_secret = pyotp.random_base32()
-            print(f"Generated OTP secret for {username}: {otp_secret}")
+            # Generate proper OTP secret
+            otp_secret = pyotp.random_base32()  # This generates a valid base32 secret
             
-            # Create user
-            hashed_password = hash_password(password)
+            # Create new user
             new_user = User(
                 username=username,
                 email=email,
                 password_hash=hashed_password,
-                otp_secret=otp_secret,
-                otp_expiry=datetime.utcnow() + timedelta(minutes=5)
+                otp_secret=otp_secret
             )
             
             db.session.add(new_user)
@@ -152,8 +149,7 @@ def register():
             print(f"Successfully created user {username}")  # Debug logging
             return jsonify({
                 "message": "Registration successful",
-                "requireOTP": True,
-                "otpSecret": otp_secret,
+                "otpSecret": otp_secret
             }), 201
 
         except Exception as e:
@@ -212,57 +208,65 @@ TIME_OFFSET = 30  # Adjust this value based on your time difference
 
 @app.route('/api/verify-otp', methods=['POST'])
 def verify_otp():
-    data = request.json
-    otp = data.get('otp')
+    data = request.get_json()
     username = data.get('username')
-
-    print(f"\nOTP Verification Attempt:")
+    otp_code = data.get('otp')
+    
+    current_time = datetime.utcnow()
+    
+    print("\n=== OTP Verification Debug ===")
+    print(f"Time of verification: {current_time}")
     print(f"Username: {username}")
-    print(f"Provided OTP: {otp}")
+    print(f"Provided OTP: {otp_code}")
 
     user = User.query.filter_by(username=username).first()
     if not user:
-        print(f"Error: User {username} not found")
+        print("Error: User not found")
         return jsonify({"message": "User not found"}), 404
 
-    print(f"User found, stored secret: {user.otp_secret}")
-    print(f"OTP expiry: {user.otp_expiry}")
-    server_time = datetime.utcnow()
-    adjusted_time = server_time + timedelta(seconds=TIME_OFFSET)
-    print(f"Server time: {server_time}")
-    print(f"Adjusted time: {adjusted_time}")
-
-    # Use TOTP verification with time offset
+    print(f"User's stored OTP secret: {user.otp_secret}")
+    
+    # Create TOTP object
     totp = pyotp.TOTP(user.otp_secret)
     
-    # Get codes for both original and adjusted time
-    current_code = totp.at(server_time)
-    adjusted_code = totp.at(adjusted_time)
+    # Get current and adjacent time windows
+    current_otp = totp.now()
+    prev_otp = totp.at(current_time - timedelta(seconds=30))
+    next_otp = totp.at(current_time + timedelta(seconds=30))
     
-    print(f"Server time: {datetime.utcnow()}")
-    print(f"Current code: {current_code}")
-    print(f"Adjusted code: {adjusted_code}")
-    print(f"Provided code: {otp}")
+    print("\nTime Windows:")
+    print(f"Previous OTP ({current_time - timedelta(seconds=30)}): {prev_otp}")
+    print(f"Current OTP  ({current_time}): {current_otp}")
+    print(f"Next OTP    ({current_time + timedelta(seconds=30)}): {next_otp}")
     
-    if user.otp_expiry > datetime.utcnow() and (
-        totp.verify(otp) or  # Try standard verification
-        otp == current_code or  # Try current time code
-        otp == adjusted_code  # Try adjusted time code
-    ):
-        print(f"OTP verified successfully for {username}")
-        user.otp_expiry = None
-        user.reset_fail_attempts()
-        db.session.commit()
-        return jsonify({"message": "OTP verified"}), 200
+    # Check if provided OTP matches any time window
+    is_valid = (
+        otp_code == current_otp or
+        otp_code == prev_otp or
+        otp_code == next_otp or
+        totp.verify(otp_code)  # This includes a ±1 time step window
+    )
     
-    print(f"Verification failed:")
-    if user.otp_expiry <= datetime.utcnow():
-        print("- OTP has expired")
-    else:
-        print("- Code mismatch")
-    print(f"- Provided code {otp} not in valid codes: [{current_code}, {adjusted_code}]")
+    print(f"\nVerification result: {'Valid' if is_valid else 'Invalid'}")
+    print("================================\n")
 
-    return jsonify({"message": "Invalid OTP"}), 401
+    if is_valid:
+        return jsonify({
+            "message": "OTP verified successfully",
+            "debug_info": {
+                "time": str(current_time),
+                "valid_codes": [prev_otp, current_otp, next_otp]
+            }
+        }), 200
+    
+    return jsonify({
+        "message": "Invalid OTP",
+        "debug_info": {
+            "time": str(current_time),
+            "valid_codes": [prev_otp, current_otp, next_otp],
+            "provided_code": otp_code
+        }
+    }), 400
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():

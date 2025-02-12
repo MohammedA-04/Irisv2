@@ -13,6 +13,10 @@ const AuthTabs = () => {
   console.log("This is AuthTabs.jsx");
   const [activeTab, setActiveTab] = useState('login');
 
+  const switchToLogin = () => {
+    setActiveTab('login');
+  };
+
   return (
     <div className="w-full min-h-[calc(100vh-4rem)] flex items-center justify-center">
       <div className="w-full max-w-md p-8">
@@ -59,7 +63,7 @@ const AuthTabs = () => {
             className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100"
           >
             {/* default: <Login/> will be shown and highlighted */}
-            {activeTab === 'login' ? <Login /> : <Register />}
+            {activeTab === 'login' ? <Login /> : <Register onSwitchToLogin={switchToLogin} />}
           </motion.div>
         </AnimatePresence>
       </div>

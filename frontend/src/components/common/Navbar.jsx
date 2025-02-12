@@ -11,15 +11,13 @@ import Navi from './Navi';
  * @returns {JSX.Element}
  * @description Navbar component displays navigation links and authentication buttons.
  */
-const Navbar = ({ logout }) => {
+const Navbar = () => {
+  const { isAuthenticated, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-    // invert authentication state
-    setIsAuthenticated(false);
   };
 
   return (

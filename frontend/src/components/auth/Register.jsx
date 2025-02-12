@@ -13,13 +13,14 @@ import OTPSetup from './OTPSetup';
  * @description component displays registration form and handles registration process.
  */
 
-const Register = () => {
+const Register = ({ onSwitchToLogin }) => {
   
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
   const [passwordStrength, setPasswordStrength] = useState({
     score: 0,
@@ -28,12 +29,11 @@ const Register = () => {
   });
   const [notification, setNotification] = useState({ message: '', type: 'success' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [setupInstructions, setSetupInstructions] = useState({
-    show: false,
-    secret: '',
-    username: ''
-  });
-  const maxRetries = 3;
+  const [showOTPSetup, setShowOTPSetup] = useState(false);
+  const [otpSecret, setOtpSecret] = useState(null);
+
+  // Add maxRetries constant
+  const maxRetries = 3; // Maximum number of retry attempts for registration
 
   //* RegEX: checks $password strength
   const checkPasswordStrength = (password) => {
@@ -68,113 +68,39 @@ const Register = () => {
   };
 
   //* Handles registration form submission
-  const handleSubmit = async (e, retryCount = 0) => {
-    // Prevent page reload and resets noti's
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setNotification({ message: '', type: 'success' });
     setIsSubmitting(true);
-    
-    // Basic validation: unfilled fields
-    if (!formData.username || !formData.email || !formData.password) {
-      setNotification({
-        message: 'Please fill in all fields',
-        type: 'error'
-      });
-      setIsSubmitting(false);
-      return;
-    }
-
-    // Email format validation: check if email is valid
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setNotification({
-        message: 'Please enter a valid email address',
-        type: 'error'
-      });
-      setIsSubmitting(false);
-      return;
-    }
 
     try {
-      //* Sends registration rquest for possible new user 
       const response = await fetch(API_URLS.register, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          username: formData.username.trim(),
-          email: formData.email.trim(),
-          password: formData.password
-        }),
+        body: JSON.stringify(formData),
       });
 
-      // Server response: {user: string, secret: string}
       const data = await response.json();
 
-      //* 200+ Sucess: new user entry
       if (response.ok) {
-        
-        // Show OTP setup instructions
-        const otpSecret = data.otpSecret;
-        console.log('Received OTP secret:', otpSecret);  
-        console.log('OTP Setup Instructions:', {
-          username: formData.username,
-          secret: otpSecret,
-        });
-        
-        // Show QR code and instructions
-        setSetupInstructions({
-          show: true,
-          secret: otpSecret,
-          username: formData.username
-        });
-        
-        // Success notification banner
+        setOtpSecret(data.otpSecret);
+        setShowOTPSetup(true);
         setNotification({
-          message: 'Account created successfully! Redirecting to login...',
+          message: 'Account created successfully! Please set up 2FA.',
           type: 'success'
         });
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      } 
-      
-        else {
-        // Switch Conditions: Handle specific error cases
-        let errorMessage = data.message;
-        switch (response.status) {
-          case 400:
-            if (data.message.includes('Username')) {
-              errorMessage = 'This username is already taken. Please choose another.';
-            } else if (data.message.includes('Email')) {
-              errorMessage = 'This email is already registered. Please use another email.';
-            } else if (data.message.includes('Password')) {
-              errorMessage = 'Password does not meet requirements. Please use a stronger password.';
-            }
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = 'Registration failed. Please try again.';
-        }
+      } else {
         setNotification({
-          message: errorMessage,
+          message: data.message || 'Registration failed',
           type: 'error'
         });
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      if (retryCount < maxRetries) {
-        // Wait for 1 second before retrying
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return handleSubmit(e, retryCount + 1);
-      }
       setNotification({
-        message: `Unable to connect to server. Please ensure the server is running and try again. (Attempted ${retryCount + 1} times)`,
+        message: 'Failed to connect to server',
         type: 'error'
       });
     } finally {
@@ -193,6 +119,11 @@ const Register = () => {
     if (name === 'password') {
       checkPasswordStrength(value);
     }
+  };
+
+  const handleOTPInstructionsAccepted = () => {
+    // Switch to login tab after OTP setup is acknowledged
+    onSwitchToLogin();
   };
 
   return (
@@ -280,14 +211,12 @@ const Register = () => {
         </div>
       </div>
 
-      {setupInstructions.show && (
+      {showOTPSetup && (
         <OTPSetup
-          secret={setupInstructions.secret}
-          username={setupInstructions.username}
-          onClose={() => {
-            setSetupInstructions({ show: false, secret: '', username: '' });
-            navigate('/login');
-          }}
+          username={formData.username}
+          otpSecret={otpSecret}
+          onBack={() => setShowOTPSetup(false)}
+          onAccept={handleOTPInstructionsAccepted}
         />
       )}
     </>
