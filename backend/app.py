@@ -374,29 +374,54 @@ def analyze_image(file):
         # Load models if not already loaded
         global processor_dima, model, device
         if processor_dima is None or model is None:
-            processor_dima, model, device = load_ml_models()
+            try:
+                print("Loading CNN model...")
+                from notebooks.train_dima_cnn import DimaCNN
+                import torchvision.transforms as transforms
+                
+                # Define image preprocessing
+                processor_dima = transforms.Compose([
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]
+                    )
+                ])
+                
+                # Load the model
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                model = DimaCNN()
+                model.load_state_dict(torch.load('best_model.pth', map_location=device))
+                model = model.to(device)
+                model.eval()
+                print("CNN model loaded successfully")
+                
+            except Exception as model_error:
+                print(f"Model loading error: {str(model_error)}")
+                return jsonify({"error": "Failed to initialize model. Please try again."}), 500
 
         # Process the image
         try:
-            image = Image.open(file).convert('RGB')  # Convert to RGB format
-            image = image.resize((224, 224))  # Resize to expected dimensions
+            image = Image.open(file).convert('RGB')
             
-            inputs = processor_dima(images=image, return_tensors="pt").to(device)
-
+            # Preprocess image
+            image_tensor = processor_dima(image).unsqueeze(0).to(device)
+            
+            # Get prediction
             with torch.no_grad():
-                outputs = model(**inputs)
-            
-            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-            real_confidence, fake_confidence = predictions[0].tolist()
-            predicted_class = predictions.argmax().item()
-            label = model.config.id2label[predicted_class]
+                outputs = model(image_tensor)
+                predictions = torch.nn.functional.softmax(outputs, dim=1)
+                real_confidence, fake_confidence = predictions[0].tolist()
+                predicted_class = predictions.argmax().item()
+                label = "real" if predicted_class == 0 else "fake"
 
             result = {
-                "result": "real" if label == "LABEL_0" else "fake",
+                "result": label,
                 "real_confidence": real_confidence,
                 "fake_confidence": fake_confidence,
                 "filename": file.filename,
-                "reason": "PRNU camera tampered" if label == "LABEL_1" else None
+                "reason": "CNN detected manipulation patterns" if label == "fake" else None
             }
 
             return jsonify(result), 200
@@ -559,7 +584,14 @@ def analyze_ai():
         
         content_type = data.get('type', 'image')
         result = data.get('result', '')
-        confidence = data.get('confidence', 0)
+
+        if(result == 'real'):
+            confidence = data.get('fake_confidence', 0)
+        else:
+            confidence = data.get('real_confidence', 0)
+
+        # confidence = data.get('confidence', 0)
+        print(f"Confidence: {confidence}")
         filename = data.get('filename', '')
         
         print(f"Processing {content_type} analysis for {filename}, classified as {result} with {confidence:.1f}% confidence")

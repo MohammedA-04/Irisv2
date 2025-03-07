@@ -83,6 +83,7 @@ const Predict = () => {
     console.log("Fetching AI analysis for:", resultData);
 
     try {
+      // Use the confidence that matches the result
       const confidence = resultData.result === 'real'
         ? resultData.real_confidence * 100
         : resultData.fake_confidence * 100;
@@ -222,17 +223,21 @@ const Predict = () => {
     );
   };
 
-  // Update the renderMetadataAnalysis function to split AI model information
+  // Update the renderMetadataAnalysis function to correctly display confidence
   const renderMetadataAnalysis = () => {
     if (!result) return null;
 
     // Calculate processing time (mock for now, you can replace with actual data)
     const processingTime = result.processingTime || "100ms";
 
-    // Calculate confidence percentage
-    const confidencePercentage = result.result === 'real'
+    // Calculate confidence percentage based on the inverting actual result
+    const confidencePercentage = result.result.toLowerCase() === 'fake'
       ? Math.round(result.real_confidence * 100)
       : Math.round(result.fake_confidence * 100);
+
+
+
+    console.log("Here" + result.result);
 
     return (
       <div className="mt-8 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl p-6 shadow-lg">
@@ -321,6 +326,7 @@ const Predict = () => {
     );
   };
 
+  // Main return
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-6xl mx-auto px-4 py-12">
@@ -379,6 +385,7 @@ const Predict = () => {
             </button>
           </div>
 
+          {/* Loading Progress */}
           {analyzing && (
             <div className="mt-4">
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -463,34 +470,46 @@ const Predict = () => {
                   <div className="bg-white rounded-lg p-4 shadow-sm">
                     <h3 className="text-lg font-semibold mb-4">Analysis</h3>
                     <div className="space-y-4">
-                      {/* Real Confidence */}
+                      {/* Real Confidence - Only show high if result is real */}
                       <div>
                         <div className="flex justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">Real</span>
                           <span className="text-sm font-medium text-gray-700">
-                            {(result.real_confidence * 100).toFixed(1)}%
+                            {result.result === 'real'
+                              ? (Math.max(result.real_confidence, result.fake_confidence) * 100).toFixed(1)
+                              : (Math.min(result.real_confidence, result.fake_confidence) * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
                             className="bg-green-500 h-2 rounded-full"
-                            style={{ width: `${(result.real_confidence * 100)}%` }}
+                            style={{
+                              width: `${result.result === 'real'
+                                ? (Math.max(result.real_confidence, result.fake_confidence) * 100)
+                                : (Math.min(result.real_confidence, result.fake_confidence) * 100)}%`
+                            }}
                           />
                         </div>
                       </div>
 
-                      {/* Fake Confidence */}
+                      {/* Fake Confidence - Only show high if result is fake */}
                       <div>
                         <div className="flex justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">Fake</span>
                           <span className="text-sm font-medium text-gray-700">
-                            {(result.fake_confidence * 100).toFixed(1)}%
+                            {result.result === 'fake'
+                              ? (Math.max(result.real_confidence, result.fake_confidence) * 100).toFixed(1)
+                              : (Math.min(result.real_confidence, result.fake_confidence) * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
                             className="bg-red-500 h-2 rounded-full"
-                            style={{ width: `${(result.fake_confidence * 100)}%` }}
+                            style={{
+                              width: `${result.result === 'fake'
+                                ? (Math.max(result.real_confidence, result.fake_confidence) * 100)
+                                : (Math.min(result.real_confidence, result.fake_confidence) * 100)}%`
+                            }}
                           />
                         </div>
                       </div>
