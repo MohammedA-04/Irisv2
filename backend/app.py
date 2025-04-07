@@ -13,10 +13,12 @@ from PIL import Image
 import random
 import string
 import torch
-from transformers import AutoImageProcessor, AutoModelForImageClassification  # Move back for DIMA
+from transformers import AutoImageProcessor, AutoModelForImageClassification, AutoTokenizer, AutoModelForSequenceClassification  # Move back for DIMA
 from pydub import AudioSegment  # For MP3 to WAV conversion
 import subprocess
 import requests
+from transformers.models.vit.modeling_vit import ViTForImageClassification, ViTModel
+from torch.serialization import safe_globals, add_safe_globals
 
 # Defer ML imports to prevent startup issues
 def load_ml_models():
@@ -48,6 +50,36 @@ def load_audio_model():
         return processor, model, device
     except Exception as e:
         print(f"Error loading audio model: {str(e)}")
+        raise
+
+def load_text_model():
+    try:
+        print("Initializing text analysis model...")
+        model_id = "mmosko/Bert_Fake_News_Classification"
+        
+        # Load tokenizer and model with proper error handling
+        try:
+            tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+            model = AutoModelForSequenceClassification.from_pretrained(model_id)
+            
+            # Update label mapping
+            model.config.id2label = {
+                0: "Fake News",
+                1: "Real News",
+                2: "Undecided"
+            }
+            model.config.label2id = {v: k for k, v in model.config.id2label.items()}
+            
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model.to(device)
+            print("Text analysis model loaded successfully")
+            return tokenizer, model, device
+        except Exception as e:
+            print(f"Failed to load model or tokenizer: {str(e)}")
+            raise
+            
+    except Exception as e:
+        print(f"Error in load_text_model: {str(e)}")
         raise
 
 # Initialize Flask app
@@ -87,6 +119,14 @@ if not app.debug:
 processor_melody, model_audio, device_audio = None, None, None
 if not app.debug:
     processor_melody, model_audio, device_audio = load_audio_model()
+
+# Add these as global variables with your other model initializations
+tokenizer_text, model_text, device_text = None, None, None
+if not app.debug:
+    try:
+        tokenizer_text, model_text, device_text = load_text_model()
+    except Exception as e:
+        print(f"Warning: Failed to load text model: {str(e)}")
 
 # Enums
 class UploadType(enum.Enum):
@@ -349,90 +389,174 @@ def upload_file():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-
-    file = request.files['file']
-    file_type = request.form.get('type', 'image')
-    model_type = request.form.get('model', 'dima')
-
-    if not file.filename:
-        return jsonify({"error": "No file selected"}), 400
-
     try:
-        if file_type == 'audio':
-            return analyze_audio(file)
-        else:
-            return analyze_image(file)
-
+        content_type = request.form.get('type', 'image')
+        
+        if content_type == 'text':
+            return analyze_text(request.form)
+        elif content_type == 'audio':
+            if 'file' not in request.files:
+                return jsonify({"error": "No audio file provided"}), 400
+            return analyze_audio(request.files['file'])
+        else:  # image
+            if 'file' not in request.files:
+                return jsonify({"error": "No image file provided"}), 400
+            return analyze_image(request.files['file'])
+            
     except Exception as e:
-        print(f"Server error: {str(e)}")
+        print(f"Analysis error: {str(e)}")
         return jsonify({"error": "Server error occurred"}), 500
 
 def analyze_image(file):
     try:
-        # Load models if not already loaded
-        global processor_dima, model, device
-        if processor_dima is None or model is None:
-            try:
-                print("Loading CNN model...")
-                from notebooks.train_dima_cnn import DimaCNN
-                import torchvision.transforms as transforms
-                
-                # Define image preprocessing
-                processor_dima = transforms.Compose([
-                    transforms.Resize((224, 224)),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225]
-                    )
-                ])
-                
-                # Load the model
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                model = DimaCNN()
-                model.load_state_dict(torch.load('best_model.pth', map_location=device))
-                model = model.to(device)
-                model.eval()
-                print("CNN model loaded successfully")
-                
-            except Exception as model_error:
-                print(f"Model loading error: {str(model_error)}")
-                return jsonify({"error": "Failed to initialize model. Please try again."}), 500
-
-        # Process the image
+        # Get the model type from the request
+        model_type = request.form.get('model', 'dima')
+        print(f"Selected image model: {model_type}")
+        
         try:
-            image = Image.open(file).convert('RGB')
+            # Import required libraries
+            from transformers import AutoProcessor, AutoModelForImageClassification
+            import torch
+            from transformers.models.vit.modeling_vit import ViTForImageClassification
+            from torch.serialization import safe_globals, add_safe_globals
             
-            # Preprocess image
-            image_tensor = processor_dima(image).unsqueeze(0).to(device)
+            # Add ViTForImageClassification to safe globals
+            add_safe_globals([ViTForImageClassification])
+            
+            # Define device
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            print(f"Using device: {device}")
+            
+            # Load the base model and processor
+            model_id = "dima806/ai_vs_real_image_detection"
+            processor = AutoProcessor.from_pretrained(model_id)
+            model = AutoModelForImageClassification.from_pretrained(model_id)
+            
+            # Get label mapping
+            id2label = model.config.id2label
+            label2id = {v.lower(): k for k, v in id2label.items()}
+            
+            print("Base model loaded successfully")
+            
+            # Load specific weights based on model selection
+            if model_type == "dima++":
+                weights_path = r"C:\Users\Moham\Irisv2\notebooks\model_full.pth"
+                print(f"Loading dima++ weights from: {weights_path}")
+                if os.path.exists(weights_path):
+                    try:
+                        # Add both ViTModel and ViTForImageClassification to safe globals
+                        add_safe_globals([ViTModel, ViTForImageClassification])
+                        
+                        with safe_globals([ViTModel, ViTForImageClassification]):
+                            try:
+                                state_dict = torch.load(
+                                    weights_path, 
+                                    map_location=device,
+                                    weights_only=False  # Explicitly set to False as suggested
+                                )
+                                
+                                # If we loaded a full model, get its state dict
+                                if hasattr(state_dict, 'state_dict'):
+                                    state_dict = state_dict.state_dict()
+                                    
+                                model.load_state_dict(state_dict)
+                                print("Successfully loaded dima++ weights")
+                            except Exception as e:
+                                print(f"Detailed loading error: {str(e)}")
+                                raise
+                    except Exception as weight_error:
+                        print(f"Error loading dima++ weights: {str(weight_error)}")
+                        print("Falling back to base model")
+                else:
+                    print("Warning: dima++ weights not found")
+                
+            elif model_type == "medical":
+                weights_path = r"C:\Users\Moham\Irisv2\notebooks\medical_tune.pth"
+                print(f"Loading medical weights from: {weights_path}")
+                if os.path.exists(weights_path):
+                    try:
+                        with safe_globals([ViTForImageClassification]):
+                            # Try loading with weights_only first
+                            try:
+                                state_dict = torch.load(
+                                    weights_path, 
+                                    map_location=device,
+                                    weights_only=True
+                                )
+                            except Exception as e:
+                                print(f"Weights-only loading failed, trying full load: {str(e)}")
+                                # If that fails, try without weights_only
+                                state_dict = torch.load(
+                                    weights_path, 
+                                    map_location=device
+                                )
+                            
+                            # If we loaded a full model, get its state dict
+                            if hasattr(state_dict, 'state_dict'):
+                                state_dict = state_dict.state_dict()
+                                
+                            model.load_state_dict(state_dict)
+                            print("Successfully loaded medical weights")
+                    except Exception as weight_error:
+                        print(f"Error loading medical weights: {str(weight_error)}")
+                        print("Falling back to base model")
+                else:
+                    print("Warning: medical weights not found")
+            
+            # Move model to device and set to evaluation mode
+            model = model.to(device)
+            model.eval()
+            print(f"Model {model_type} ready for inference")
+            
+            # Process the image
+            image = Image.open(file).convert("RGB")
+            inputs = processor(images=image, return_tensors="pt")
+            inputs = {k: v.to(device) for k, v in inputs.items()}
             
             # Get prediction
             with torch.no_grad():
-                outputs = model(image_tensor)
-                predictions = torch.nn.functional.softmax(outputs, dim=1)
-                real_confidence, fake_confidence = predictions[0].tolist()
-                predicted_class = predictions.argmax().item()
-                label = "real" if predicted_class == 0 else "fake"
-
-            result = {
-                "result": label,
-                "real_confidence": real_confidence,
-                "fake_confidence": fake_confidence,
-                "filename": file.filename,
-                "reason": "CNN detected manipulation patterns" if label == "fake" else None
-            }
-
-            return jsonify(result), 200
-
-        except Exception as img_error:
-            print(f"Image processing error: {str(img_error)}")
-            return jsonify({"error": "Failed to process image. Please ensure it's a valid image file."}), 400
-
+                outputs = model(**inputs)
+                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
+                
+                # Get confidence scores
+                try:
+                    real_confidence = probabilities[label2id['real']].item()
+                    fake_confidence = probabilities[label2id['fake']].item()
+                    print(f"Prediction complete - Real: {real_confidence:.4f}, Fake: {fake_confidence:.4f}")
+                except KeyError as e:
+                    print(f"Label mapping error: {str(e)}")
+                    # Fallback to index-based confidence
+                    real_confidence = probabilities[0].item()
+                    fake_confidence = probabilities[1].item()
+                
+                # Determine result
+                label_id = torch.argmax(probabilities).item()
+                label = id2label[label_id].lower()
+                result_label = "real" if label == "real" else "fake"
+                
+                print(f"Final prediction: {result_label}")
+                
+                result = {
+                    "result": result_label,
+                    "real_confidence": real_confidence,
+                    "fake_confidence": fake_confidence,
+                    "filename": file.filename,
+                    "reason": f"Model detected {result_label} image patterns" if result_label == "fake" else None
+                }
+                
+                return jsonify(result), 200
+                
+        except Exception as model_error:
+            print(f"Model processing error: {str(model_error)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to process image: {str(model_error)}"}), 400
+            
     except Exception as e:
         print(f"Server error: {str(e)}")
-        return jsonify({"error": "Server error occurred"}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Server error occurred: {str(e)}"}), 500
 
 def analyze_audio(file):
     try:
@@ -628,6 +752,115 @@ def analyze_ai():
         import traceback
         print(traceback.format_exc())
         return jsonify({"error": f"Error generating analysis: {str(e)}"}), 500
+
+def load_model(model_name):
+    # Use os.path for file paths, not import statements
+    import os
+    
+    if model_name == "dima":
+        # Original Dima model
+        model = AutoModelForImageClassification.from_pretrained("dima806/deepfake_vs_real_image_detection")
+        processor = AutoImageProcessor.from_pretrained("dima806/deepfake_vs_real_image_detection")
+        
+    elif model_name == "dima++":
+        # Use correct file path
+        weights_path = os.path.join("C:\\Users\\Moham\\Irisv2\\notebooks", "model_full.pth")
+        print(f"Loading weights from: {weights_path}")
+        print(f"File exists: {os.path.exists(weights_path)}")
+        
+        model = AutoModelForImageClassification.from_pretrained("dima806/deepfake_vs_real_image_detection")
+        processor = AutoImageProcessor.from_pretrained("dima806/deepfake_vs_real_image_detection")
+        model.load_state_dict(torch.load(weights_path, map_location=device))
+        
+    # Same for medical model...
+    
+    return model, processor
+
+# Add this new function to analyze text
+def analyze_text(data):
+    try:
+        # Verify model and tokenizer are loaded
+        global tokenizer_text, model_text, device_text
+        if tokenizer_text is None or model_text is None:
+            try:
+                tokenizer_text, model_text, device_text = load_text_model()
+            except Exception as e:
+                return jsonify({"error": f"Text analysis model not available: {str(e)}"}), 503
+
+        title = data.get('title', '')
+        text = data.get('text', '')
+        subject = data.get('subject', '')
+        date = data.get('date', '')
+        
+        print(f"\nAnalyzing text: {title}")
+        
+        # Validate inputs
+        if not all([title, text, subject, date]):
+            return jsonify({"error": "All fields (Title, Text, Subject, Date) must be provided"}), 400
+            
+        try:
+            datetime.strptime(date, "%B %d, %Y")
+        except ValueError:
+            return jsonify({"error": "Date must be in the format: 'Month DD, YYYY'"}), 400
+            
+        # Combine text for analysis
+        combined_text = f"Title: {title}\nText: {text}\nSubject: {subject}\nDate: {date}"
+        
+        # Tokenize with proper error handling
+        try:
+            inputs = tokenizer_text(
+                combined_text,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512
+            )
+            inputs = {k: v.to(device_text) for k, v in inputs.items()}
+        except Exception as e:
+            print(f"Tokenization error: {str(e)}")
+            return jsonify({"error": "Failed to process text input"}), 400
+        
+        # Get prediction
+        try:
+            with torch.no_grad():
+                outputs = model_text(**inputs)
+                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
+                
+                label_id = torch.argmax(probabilities).item()
+                label = model_text.config.id2label[label_id]
+                
+                # Calculate confidence scores
+                fake_confidence = probabilities[model_text.config.label2id["Fake News"]].item() 
+                real_confidence = probabilities[model_text.config.label2id["Real News"]].item() 
+                
+                print(f"Prediction complete: {label}")
+                print(f"Confidences - Real: {real_confidence:.2f}%, Fake: {fake_confidence:.2f}%")
+                
+                result = {
+                    "result": "fake" if "Fake" in label else "real",
+                    "real_confidence": real_confidence,
+                    "fake_confidence": fake_confidence,
+                    "label": label,
+                    "title": title,
+                    "text": text,
+                    "subject": subject,
+                    "date": date,
+                    "filename": f"{title}.txt",
+                    "type": "text",
+                    "model": "Mosko News Model",
+                    "reason": f"News analysis model detected patterns consistent with {label.lower()}"
+                }
+                
+                return jsonify(result), 200
+                
+        except Exception as e:
+            print(f"Prediction error: {str(e)}")
+            return jsonify({"error": "Failed to analyze text"}), 500
+            
+    except Exception as e:
+        print(f"Text analysis error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to analyze text: {str(e)}"}), 500
 
 if __name__ == '__main__':
     with app.app_context():

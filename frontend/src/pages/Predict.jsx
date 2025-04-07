@@ -69,10 +69,19 @@ const Predict = () => {
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
+  const [newsTitle, setNewsTitle] = useState('');
+  const [newsText, setNewsText] = useState('');
+  const [newsSubject, setNewsSubject] = useState('');
+  const [newsDate, setNewsDate] = useState('');
+
   const clearFileSelection = () => {
     setFile(null);
     setResult(null);
     setAiAnalysis('');
+    setNewsTitle('');
+    setNewsText('');
+    setNewsSubject('');
+    setNewsDate('');
   };
 
   // Add function to fetch AI analysis
@@ -122,7 +131,12 @@ const Predict = () => {
   };
 
   const analyzeFile = async () => {
-    if (!file) {
+    if (selectedType === 'Text') {
+      if (!newsTitle || !newsText || !newsSubject || !newsDate) {
+        setError('Please fill in all fields');
+        return;
+      }
+    } else if (!file) {
       setError('Please select a file first');
       return;
     }
@@ -131,40 +145,45 @@ const Predict = () => {
     setError(null);
     setLoadingProgress(0);
     setLoadingStatus('Initializing...');
-    setAiAnalysis(''); // Clear previous analysis
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', selectedType.toLowerCase());
-    formData.append('model', selectedModel);
+    setAiAnalysis('');
 
     try {
-      // Start loading model
-      setLoadingStatus('Loading AI model...');
-      setLoadingProgress(20);
+      const formData = new FormData();
+
+      if (selectedType === 'Text') {
+        formData.append('type', 'text');
+        formData.append('title', newsTitle);
+        formData.append('text', newsText);
+        formData.append('subject', newsSubject);
+        formData.append('date', newsDate);
+      } else {
+        formData.append('file', file);
+        formData.append('type', selectedType.toLowerCase());
+      }
+      formData.append('model', selectedModel);
+
+      setLoadingStatus('Processing...');
+      setLoadingProgress(30);
 
       const response = await fetch('http://localhost:5000/api/analyze', {
         method: 'POST',
         body: formData,
       });
 
-      setLoadingStatus('Processing file...');
       setLoadingProgress(60);
 
-      const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Analysis failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Analysis failed');
       }
 
-      setLoadingStatus('Finalizing results...');
+      const data = await response.json();
       setLoadingProgress(90);
 
       setTimeout(() => {
         setResult(data);
         setLoadingProgress(100);
         setLoadingStatus('');
-
-        // Fetch AI analysis after getting results
         fetchAiAnalysis(data);
       }, 500);
 
@@ -185,6 +204,12 @@ const Predict = () => {
       case 'Image':
         return [
           { value: 'dima', label: 'Dima Image Model' },
+          { value: 'dima++', label: 'Dima++ Enhanced Model' },
+          { value: 'medical', label: 'Medical Tuned Model' }
+        ];
+      case 'Text':
+        return [
+          { value: 'mosko', label: 'News ~ mosko' },
         ];
       default:
         return [];
@@ -235,9 +260,19 @@ const Predict = () => {
       ? Math.round(result.real_confidence * 100)
       : Math.round(result.fake_confidence * 100);
 
-
-
-    console.log("Here" + result.result);
+    // Get the correct model name based on the selected type
+    const getModelName = () => {
+      switch (selectedType) {
+        case 'Image':
+          return 'Dima Image Model';
+        case 'Audio':
+          return 'Melody Audio Model';
+        case 'Text':
+          return 'Mosko: News Text Model';
+        default:
+          return 'Unknown Model';
+      }
+    };
 
     return (
       <div className="mt-8 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl p-6 shadow-lg">
@@ -304,9 +339,7 @@ const Predict = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Classification Model</p>
-                <p className="text-lg font-semibold">
-                  {selectedType === 'Image' ? 'Dima Image Model' : 'Melody Audio Model'}
-                </p>
+                <p className="text-lg font-semibold">{getModelName()}</p>
               </div>
             </div>
 
@@ -353,26 +386,41 @@ const Predict = () => {
               >
                 <option value="Image">Image</option>
                 <option value="Audio">Audio</option>
+                <option value="Text">Text</option>
               </select>
 
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                {getModelOptions(selectedType).map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="mb-4">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={analyzing}
+                >
+                  {getModelOptions(selectedType).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <button
               onClick={analyzeFile}
-              disabled={!file || analyzing}
+              disabled={
+                analyzing ||
+                (selectedType === 'Text'
+                  ? (!newsTitle || !newsText || !newsSubject || !newsDate)
+                  : !file
+                )
+              }
               className={`px-6 py-2 bg-blue-600 text-white rounded-lg transition-colors relative
-                ${!file || analyzing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
+                ${(selectedType === 'Text'
+                  ? (!newsTitle || !newsText || !newsSubject || !newsDate)
+                  : !file
+                ) || analyzing
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:bg-blue-700'}`}
             >
               {analyzing ? (
                 <div className="flex items-center space-x-2">
@@ -427,7 +475,9 @@ const Predict = () => {
               <div className="mb-6 flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center gap-2">
                   <FiFile className="w-5 h-5 text-gray-600" />
-                  <span className="text-gray-700 font-medium">{file.name}</span>
+                  <span className="text-gray-700 font-medium">
+                    {selectedType === 'Text' ? result.title : file?.name}
+                  </span>
                 </div>
                 <button
                   onClick={clearFileSelection}
@@ -470,49 +520,61 @@ const Predict = () => {
                   <div className="bg-white rounded-lg p-4 shadow-sm">
                     <h3 className="text-lg font-semibold mb-4">Analysis</h3>
                     <div className="space-y-4">
-                      {/* Real Confidence - Only show high if result is real */}
+                      {/* Real Confidence */}
                       <div>
                         <div className="flex justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">Real</span>
                           <span className="text-sm font-medium text-gray-700">
-                            {result.result === 'real'
-                              ? (Math.max(result.real_confidence, result.fake_confidence) * 100).toFixed(1)
-                              : (Math.min(result.real_confidence, result.fake_confidence) * 100).toFixed(1)}%
+                            {(result.real_confidence * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
                             className="bg-green-500 h-2 rounded-full"
                             style={{
-                              width: `${result.result === 'real'
-                                ? (Math.max(result.real_confidence, result.fake_confidence) * 100)
-                                : (Math.min(result.real_confidence, result.fake_confidence) * 100)}%`
+                              width: `${(result.real_confidence * 100)}%`
                             }}
                           />
                         </div>
                       </div>
 
-                      {/* Fake Confidence - Only show high if result is fake */}
+                      {/* Fake Confidence */}
                       <div>
                         <div className="flex justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">Fake</span>
                           <span className="text-sm font-medium text-gray-700">
-                            {result.result === 'fake'
-                              ? (Math.max(result.real_confidence, result.fake_confidence) * 100).toFixed(1)
-                              : (Math.min(result.real_confidence, result.fake_confidence) * 100).toFixed(1)}%
+                            {(result.fake_confidence * 100).toFixed(1)}%
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
                             className="bg-red-500 h-2 rounded-full"
                             style={{
-                              width: `${result.result === 'fake'
-                                ? (Math.max(result.real_confidence, result.fake_confidence) * 100)
-                                : (Math.min(result.real_confidence, result.fake_confidence) * 100)}%`
+                              width: `${(result.fake_confidence * 100)}%`
                             }}
                           />
                         </div>
                       </div>
+
+                      {/* Undecided Confidence - Only show for Text analysis */}
+                      {selectedType === 'Text' && (
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-700">Undecided</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              {(result.undecided_confidence * 100 || 0).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-yellow-500 h-2 rounded-full"
+                              style={{
+                                width: `${(result.undecided_confidence * 100 || 0)}%`
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -524,8 +586,84 @@ const Predict = () => {
               {/* Metadata Analysis */}
               {renderMetadataAnalysis()}
             </div>
+          ) : selectedType === 'Text' ? (
+            // Text Input Form
+            <div className="bg-white rounded-lg p-6 shadow-sm mb-8">
+              <div className="space-y-4">
+                {/* Title Input */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newsTitle}
+                    onChange={(e) => setNewsTitle(e.target.value)}
+                    placeholder="Enter news title"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Text Content Input */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Text Content
+                  </label>
+                  <textarea
+                    value={newsText}
+                    onChange={(e) => setNewsText(e.target.value)}
+                    placeholder="Enter the news content"
+                    rows={6}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Subject Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <select
+                    value={newsSubject}
+                    onChange={(e) => setNewsSubject(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select a subject</option>
+                    <option value="Politics">Politics</option>
+                    <option value="Technology">Technology</option>
+                    <option value="Science">Science</option>
+                    <option value="Health">Health</option>
+                    <option value="Business">Business</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Sports">Sports</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* Date Input */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date (Month DD, YYYY)
+                  </label>
+                  <input
+                    type="text"
+                    value={newsDate}
+                    onChange={(e) => setNewsDate(e.target.value)}
+                    placeholder="April 7, 2025"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Form Validation Message */}
+                {error && (
+                  <div className="text-red-500 text-sm mt-2">
+                    {error}
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
-            /* Upload Area */
+            // Drag and Drop Upload Area for Image and Audio
             <div
               className={`
                 relative

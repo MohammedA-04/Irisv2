@@ -1,0 +1,40 @@
+Things to do 
+1. Check merged balance: smote, augement, over/under sample [BEFORE SPLIT]
+2. Check FT D++ model (scores, conf mtrx)
+3. Hyper parms tune:
+
+
+Struct
+|- pretrained set CIFAKE
+    |- imported model 
+        |- fine tune set: 1/20 of 140K R/F
+        |- fine tune set2: custom
+
+Models Ideas
+1. Make own dataset (GrokAI, SomeOnlineTool)
+    a. use roboflow to give classification R/FT
+2. Train on 1/20 for 8 hrs
+    a. make sure it is connect to G Drive
+3. re train on custom
+
+
+## Perhpas make it API able!!!!
+
+## Using base model saved takes maybe 4hrs
+## For each one there is a base model
+
+
+## Styles
+1. Image (Base)
+    a. News? (Common in deepfakes sets) [https://github.com/KaiDMML/FakeNewsNet]
+    b. !Social (Mid Journery, GROK AI)
+    c. !Medical [https://medmnist.com/]
+
+2. Video (Base)
+    a. !multi modal: video and subtitles
+    b. sign language [https://github.com/sign-language-processing/datasets]
+
+3. Text (Base)
+    a. articles
+    b. !captions
+    c. chatbot?
