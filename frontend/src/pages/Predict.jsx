@@ -10,6 +10,7 @@ const TypingEffect = ({ text }) => {
   const textRef = useRef(text);
   const indexRef = useRef(0);
   const [isStarted, setIsStarted] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
     // Reset when text changes
@@ -17,6 +18,7 @@ const TypingEffect = ({ text }) => {
     indexRef.current = 0;
     setDisplayedText('');
     setIsStarted(false);
+    setIsComplete(false);
 
     if (!text) return;
 
@@ -38,6 +40,7 @@ const TypingEffect = ({ text }) => {
         indexRef.current += 1;
       } else {
         clearInterval(typingInterval);
+        setIsComplete(true);
       }
     }, 20);
 
@@ -47,7 +50,7 @@ const TypingEffect = ({ text }) => {
   return (
     <div className="font-sans text-gray-800 leading-relaxed whitespace-pre-wrap">
       {displayedText}
-      {indexRef.current < (textRef.current?.length || 0) && (
+      {!isComplete && indexRef.current < (textRef.current?.length || 0) && (
         <span className="inline-block w-2 h-4 bg-gray-500 ml-1 animate-pulse"></span>
       )}
     </div>
@@ -92,16 +95,19 @@ const Predict = () => {
     console.log("Fetching AI analysis for:", resultData);
 
     try {
-      // Use the confidence that matches the result
-      const confidence = resultData.result === 'real'
+      // Fix the confidence calculation to use the correct confidence value
+      // based on the actual result (real or fake)
+      const confidence = resultData.result && resultData.result.toLowerCase() === 'real'
         ? resultData.real_confidence * 100
         : resultData.fake_confidence * 100;
 
       const requestBody = {
-        type: selectedType.toLowerCase(),
-        result: resultData.result,
+        type: selectedType ? selectedType.toLowerCase() : 'unknown',
+        result: resultData.result || 'unknown',
         confidence: confidence,
-        filename: resultData.filename
+        real_confidence: resultData.real_confidence * 100,
+        fake_confidence: resultData.fake_confidence * 100,
+        filename: resultData.filename || 'file'
       };
       console.log("Sending request to analyze-ai:", requestBody);
 
@@ -158,7 +164,7 @@ const Predict = () => {
         formData.append('date', newsDate);
       } else {
         formData.append('file', file);
-        formData.append('type', selectedType.toLowerCase());
+        formData.append('type', selectedType ? selectedType.toLowerCase() : 'image');
       }
       formData.append('model', selectedModel);
 
@@ -198,19 +204,13 @@ const Predict = () => {
   const getModelOptions = (type) => {
     switch (type) {
       case 'Audio':
-        return [
-          { value: 'melody', label: 'Melody Audio Model' },
-        ];
-      case 'Image':
-        return [
-          { value: 'dima', label: 'Dima Image Model' },
-          { value: 'dima++', label: 'Dima++ Enhanced Model' },
-          { value: 'medical', label: 'Medical Tuned Model' }
-        ];
+        return ['Melody Audio Model'];
       case 'Text':
-        return [
-          { value: 'mosko', label: 'News ~ mosko' },
-        ];
+        return ['Mosko News Model'];
+      case 'Video':
+        return ['ASL Video Model'];
+      case 'Image':
+        return ['Dima Image Model', 'Dima++ Image Model', 'Medical Image Model', 'ASL Sign Model'];
       default:
         return [];
     }
@@ -255,8 +255,9 @@ const Predict = () => {
     // Calculate processing time (mock for now, you can replace with actual data)
     const processingTime = result.processingTime || "100ms";
 
-    // Calculate confidence percentage based on the inverting actual result
-    const confidencePercentage = result.result.toLowerCase() === 'fake'
+    // Fix the confidence percentage calculation to show the correct confidence
+    // based on the actual result
+    const confidencePercentage = result.result && result.result.toLowerCase() === 'real'
       ? Math.round(result.real_confidence * 100)
       : Math.round(result.fake_confidence * 100);
 
@@ -269,6 +270,8 @@ const Predict = () => {
           return 'Melody Audio Model';
         case 'Text':
           return 'Mosko: News Text Model';
+        case 'Video':
+          return 'Sign Language (ASL)';
         default:
           return 'Unknown Model';
       }
@@ -359,6 +362,129 @@ const Predict = () => {
     );
   };
 
+  // New function to render video analysis results
+  const renderVideoAnalysis = () => {
+    if (!result || selectedType !== 'Video' || !result.predictions) return null;
+
+    return (
+      <div className="mt-8 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-xl p-6 shadow-lg">
+        <h3 className="text-xl font-semibold mb-4">Video Frame Analysis</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Frame-by-frame analysis of your video content
+        </p>
+
+        <div className="bg-white rounded-lg p-4 shadow-sm overflow-auto max-h-64">
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="py-2 px-4 text-left text-sm font-medium text-gray-700">Frame</th>
+                <th className="py-2 px-4 text-left text-sm font-medium text-gray-700">Classification</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.predictions.map((prediction, index) => (
+                <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                  <td className="py-2 px-4 text-sm text-gray-700">{prediction.frame}</td>
+                  <td className={`py-2 px-4 text-sm font-medium ${prediction.label && prediction.label.toLowerCase() === 'real' ? 'text-green-600' : 'text-red-600'}`}>
+                    {prediction.label || 'Unknown'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 bg-white/80 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="font-medium text-gray-700">Summary:</div>
+            {(() => {
+              const realFrames = result.predictions.filter(p => p.label && p.label === 'Real').length;
+              const totalFrames = result.predictions.length;
+              const realPercentage = (realFrames / totalFrames) * 100;
+
+              // Set overall result based on percentage of real frames
+              const overallResult = realPercentage > 50 ? 'Likely Real' : 'Likely Fake';
+              const colorClass = realPercentage > 50 ? 'text-green-600' : 'text-red-600';
+
+              return (
+                <div className={`font-bold ${colorClass}`}>
+                  {overallResult} ({realPercentage.toFixed(1)}% real frames)
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderResult = () => {
+    if (!result) return null;
+
+    // Handle ASL Sign Model results
+    if (selectedModel === 'ASL Sign Model') {
+      return (
+        <div className="mt-6 p-6 bg-white rounded-lg shadow-md">
+          <h3 className="text-xl font-semibold mb-4">ASL Sign Prediction</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Predicted Sign:</span>
+              <span className="font-semibold">{result.result}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Confidence:</span>
+              <span className="font-semibold">{(result.confidence * 100).toFixed(2)}%</span>
+            </div>
+            <div className="mt-4">
+              <h4 className="text-lg font-medium mb-2">Top Predictions:</h4>
+              <div className="space-y-2">
+                {result.all_predictions
+                  .map((confidence, index) => ({ sign: `Sign_${index}`, confidence }))
+                  .sort((a, b) => b.confidence - a.confidence)
+                  .slice(0, 5)
+                  .map((pred, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <span className="text-gray-600">{pred.sign}</span>
+                      <span className="font-semibold">{(pred.confidence * 100).toFixed(2)}%</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Existing result rendering code...
+    return (
+      <div className="mt-6 p-6 bg-white rounded-lg shadow-md">
+        <h3 className="text-xl font-semibold mb-4">Analysis Results</h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">Result:</span>
+            <span className={`font-semibold ${result.result === 'real' ? 'text-green-600' : 'text-red-600'}`}>
+              {result.result.toUpperCase()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">Real Confidence:</span>
+            <span className="font-semibold">{(result.real_confidence * 100).toFixed(2)}%</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">Fake Confidence:</span>
+            <span className="font-semibold">{(result.fake_confidence * 100).toFixed(2)}%</span>
+          </div>
+          {result.reason && (
+            <div className="mt-4">
+              <h4 className="text-lg font-medium mb-2">Reason:</h4>
+              <p className="text-gray-600">{result.reason}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Main return
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -378,15 +504,16 @@ const Predict = () => {
                 value={selectedType}
                 onChange={(e) => {
                   setSelectedType(e.target.value);
-                  setSelectedModel(getModelOptions(e.target.value)[0].value);
+                  setSelectedModel(getModelOptions(e.target.value)[0]);
                   setFile(null);
                   setResult(null);
                 }}
-                className="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className=" px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 w-32 h-10"
               >
                 <option value="Image">Image</option>
                 <option value="Audio">Audio</option>
                 <option value="Text">Text</option>
+                <option value="Video">Video</option>
               </select>
 
               <div className="mb-4">
@@ -397,8 +524,8 @@ const Predict = () => {
                   disabled={analyzing}
                 >
                   {getModelOptions(selectedType).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                    <option key={option} value={option}>
+                      {option}
                     </option>
                   ))}
                 </select>
@@ -495,11 +622,11 @@ const Predict = () => {
                   <div className="space-y-4">
                     <div className="bg-white rounded-lg p-4 shadow-sm">
                       <h3 className="text-xl font-semibold mb-2">Result</h3>
-                      <div className={`text-lg font-bold rounded-md p-2 text-center ${result.result.toLowerCase() === 'real'  // Add toLowerCase() to ensure case-insensitive comparison
+                      <div className={`text-lg font-bold rounded-md p-2 text-center ${result.result && result.result.toLowerCase() === 'real'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-red-100 text-red-700'
                         }`}>
-                        {result.result.toUpperCase()}
+                        {result.result ? result.result.toUpperCase() : 'UNKNOWN'}
                       </div>
                     </div>
 
@@ -585,6 +712,12 @@ const Predict = () => {
 
               {/* Metadata Analysis */}
               {renderMetadataAnalysis()}
+
+              {/* Video Analysis */}
+              {renderVideoAnalysis()}
+
+              {/* Result Analysis */}
+              {renderResult()}
             </div>
           ) : selectedType === 'Text' ? (
             // Text Input Form
@@ -701,14 +834,22 @@ const Predict = () => {
               <p className="text-xs text-gray-500 mt-2">
                 {selectedType === 'Audio'
                   ? 'Supported formats: WAV, MP3'
-                  : 'Supported formats: JPG, PNG, GIF'}
+                  : selectedType === 'Video'
+                    ? 'Supported formats: MP4, MOV, AVI'
+                    : 'Supported formats: JPG, PNG, GIF'}
               </p>
 
               <input
                 type="file"
                 className="hidden"
                 onChange={(e) => setFile(e.target.files[0])}
-                accept={selectedType === 'Audio' ? 'audio/*' : 'image/*'}
+                accept={
+                  selectedType === 'Audio'
+                    ? 'audio/*'
+                    : selectedType === 'Video'
+                      ? 'video/*'
+                      : 'image/*'
+                }
               />
               {file && !result && (
                 <div className="mt-4 flex items-center gap-2 text-sm">

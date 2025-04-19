@@ -25,16 +25,16 @@ Models Ideas
 
 
 ## Styles
-1. Image (Base)
+1. Image (Base) ~ model weights messed potentially
     a. News? (Common in deepfakes sets) [https://github.com/KaiDMML/FakeNewsNet]
     b. !Social (Mid Journery, GROK AI)
-    c. !Medical [https://medmnist.com/]
+    c. !Medical [https://medmnist.com/] ~ base related problems
 
 2. Video (Base)
     a. !multi modal: video and subtitles
     b. sign language [https://github.com/sign-language-processing/datasets]
 
 3. Text (Base)
-    a. articles
-    b. !captions
+    a. articles ~ done 
+    b. !captions ~ we'll see 
     c. chatbot?

@@ -5,6 +5,8 @@ import Home from './pages/Home';
 import AuthTabs from './components/auth/AuthTabs';
 import Predict from './pages/Predict';
 import Guide from './pages/Guide';
+import HowItWorks from './pages/HowItWorks';
+import IntroduceDima from './pages/IntroduceDima';
 
 const AppRoutes = () => {
   return (
@@ -18,6 +20,8 @@ const AppRoutes = () => {
         <Route path="/predict/image" element={<Predict />} />
         <Route path="/predict/audio" element={<Predict />} />
         <Route path="/guide" element={<Guide />} />
+        <Route path="/how-it-works" element={<HowItWorks />} />
+        <Route path="/introducedima" element={<IntroduceDima />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

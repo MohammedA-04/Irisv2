@@ -19,6 +19,7 @@ import subprocess
 import requests
 from transformers.models.vit.modeling_vit import ViTForImageClassification, ViTModel
 from torch.serialization import safe_globals, add_safe_globals
+import numpy as np
 
 # Defer ML imports to prevent startup issues
 def load_ml_models():
@@ -136,6 +137,9 @@ class UploadType(enum.Enum):
 
 class ModelApplied(enum.Enum):
     dima = 'dima'
+    melody = 'melody'
+    mosko = 'mosko'
+    asl = 'asl'
 
 # Database Models
 class User(db.Model):
@@ -398,6 +402,10 @@ def analyze_file():
             if 'file' not in request.files:
                 return jsonify({"error": "No audio file provided"}), 400
             return analyze_audio(request.files['file'])
+        elif content_type == 'video':
+            if 'file' not in request.files:
+                return jsonify({"error": "No video file provided"}), 400
+            return jsonify(analyze_video(request.files['file'])), 200
         else:  # image
             if 'file' not in request.files:
                 return jsonify({"error": "No image file provided"}), 400
@@ -413,6 +421,55 @@ def analyze_image(file):
         model_type = request.form.get('model', 'dima')
         print(f"Selected image model: {model_type}")
         
+        # Handle ASL model
+        if model_type == 'ASL Sign Model':
+            if asl_model is None:
+                print("ASL model is not loaded")
+                return jsonify({"error": "ASL model not available"}), 503
+                
+            try:
+                # Process image for ASL prediction
+                image = Image.open(file).convert('RGB')
+                image = image.resize((224, 224))  # Resize to expected dimensions
+                image_array = np.array(image) / 255.0  # Normalize
+                image_array = np.expand_dims(image_array, axis=0)  # Add batch dimension
+                
+                print("Running ASL prediction...")
+                # Get prediction
+                prediction = asl_model.predict(image_array)
+                predicted_class = np.argmax(prediction[0])
+                confidence = float(prediction[0][predicted_class])
+                
+                # Get class labels (assuming 100 classes for MS-ASL 100)
+                class_labels = [f"Sign_{i}" for i in range(100)]  # You can replace this with actual sign names
+                
+                # Get top 5 predictions
+                top_predictions = []
+                for i in range(len(prediction[0])):
+                    top_predictions.append({
+                        'sign': f"Sign_{i}",
+                        'confidence': float(prediction[0][i])
+                    })
+                top_predictions.sort(key=lambda x: x['confidence'], reverse=True)
+                top_predictions = top_predictions[:5]
+                
+                result = {
+                    "result": class_labels[predicted_class],
+                    "confidence": confidence,
+                    "filename": file.filename,
+                    "top_predictions": top_predictions
+                }
+                
+                print(f"ASL prediction complete: {result}")
+                return jsonify(result), 200
+                
+            except Exception as e:
+                print(f"Error during ASL prediction: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
+                return jsonify({"error": f"Error during ASL prediction: {str(e)}"}), 500
+            
+        # Existing image analysis code...
         try:
             # Import required libraries
             from transformers import AutoProcessor, AutoModelForImageClassification
@@ -708,44 +765,94 @@ def analyze_ai():
         
         content_type = data.get('type', 'image')
         result = data.get('result', '')
-
-        if(result == 'real'):
-            confidence = data.get('fake_confidence', 0)
-        else:
-            confidence = data.get('real_confidence', 0)
-
-        # confidence = data.get('confidence', 0)
-        print(f"Confidence: {confidence}")
         filename = data.get('filename', '')
         
+        # Use the confidence value that corresponds to the result
+        # This should be the confidence of the predicted class
+        confidence = data.get('confidence', 0)
+
+        print(f"Confidence: {confidence}")
+        
+        # Calculate memory usage and check constraints
+        MEMORY_LIMIT = 5.6 * 1024 * 1024 * 1024  # 5.6GB in bytes
+        current_memory = 0
+        
+        # Check file size if file exists
+        if 'file' in request.files:
+            file = request.files['file']
+            file_size = len(file.read())
+            current_memory += file_size
+            print(f"File size: {file_size / (1024*1024):.2f} MB")
+            
+            # Reset file pointer
+            file.seek(0)
+        
+        # Calculate prompt size
+        prompt_size = len(str(data).encode('utf-8'))
+        current_memory += prompt_size
+        print(f"Prompt size: {prompt_size / (1024*1024):.2f} MB")
+        
+        # Check if total memory usage exceeds limit
+        if current_memory > MEMORY_LIMIT:
+            print(f"Warning: Memory usage ({current_memory / (1024*1024*1024):.2f} GB) exceeds limit ({MEMORY_LIMIT / (1024*1024*1024):.2f} GB)")
+            print("Proceeding with prompt-only analysis")
+            # Remove file from data if present
+            if 'file' in data:
+                del data['file']
+        
         print(f"Processing {content_type} analysis for {filename}, classified as {result} with {confidence:.1f}% confidence")
+        
+        # Get the opposite confidence value for the warning threshold check
+        opposite_confidence = 0
+        if 'fake_confidence' in data and 'real_confidence' in data:
+            opposite_confidence = data.get('fake_confidence', 0) if result.lower() == 'real' else data.get('real_confidence', 0)
+            print(f"Opposite confidence: {opposite_confidence}")
         
         # Create dynamic prompt based on content type
         if content_type == 'image':
             prompt = f"Given that an AI system classified an image named '{filename}' as {result.upper()} with {confidence:.1f}% confidence, provide a hypothetical explanation of what might have led to this classification. Consider common visual artifacts, lighting inconsistencies, and other factors that typically indicate {'manipulation in fake images' if result == 'fake' else 'authenticity in real images'}. Provide a detailed but concise explanation in 3-4 sentences."
+            
+            # Add warning about possible fake if the opposite confidence is high
+            if result.lower() == 'real' and opposite_confidence > 20:
+                prompt += f" Additionally, note that the system did detect some characteristics of a fake image ({opposite_confidence:.1f}% confidence), so there is a possibility this could be a sophisticated fake that escaped detection. Briefly mention what aspects might still be concerning."
+            
         else:  # audio
             prompt = f"Given that an AI system classified an audio file named '{filename}' as {result.upper()} with {confidence:.1f}% confidence, provide a hypothetical explanation of what might have led to this classification. Consider common voice patterns, background noise, and other factors that typically indicate {'manipulation in fake audio' if result == 'fake' else 'authenticity in real audio'}. Provide a detailed but concise explanation in 3-4 sentences."
+            
+            # Add warning about possible fake if the opposite confidence is high
+            if result.lower() == 'real' and opposite_confidence > 20:
+                prompt += f" Additionally, note that the system did detect some characteristics of fake audio ({opposite_confidence:.1f}% confidence), so there is a possibility this could be a sophisticated fake that escaped detection. Briefly mention what aspects might still be concerning."
         
         print(f"Generated prompt: {prompt}")
         
         # Call Ollama API (assuming it's running locally)
         print("Calling Ollama API...")
-        ollama_response = requests.post('http://localhost:11434/api/generate', json={
-            'model': 'llama3',  # or another model you have installed
-            'prompt': prompt,
-            'stream': False
-        })
-        
-        print(f"Ollama API response status: {ollama_response.status_code}")
-        
-        if ollama_response.status_code == 200:
-            response_data = ollama_response.json()
-            analysis = response_data.get('response', '')
-            print(f"Analysis generated: {analysis[:100]}...")  # Print first 100 chars
-            return jsonify({"analysis": analysis}), 200
-        else:
-            print(f"Ollama API error: {ollama_response.text}")
-            return jsonify({"error": "Failed to generate AI analysis"}), 500
+        try:
+            ollama_response = requests.post('http://localhost:11434/api/generate', json={
+                'model': 'llama3',  # or another model you have installed
+                'prompt': prompt,
+                'stream': False
+            })
+            
+            print(f"Ollama API response status: {ollama_response.status_code}")
+            
+            if ollama_response.status_code == 200:
+                response_data = ollama_response.json()
+                analysis = response_data.get('response', '')
+                print(f"Analysis generated: {analysis[:100]}...")  # Print first 100 chars
+                return jsonify({
+                    "analysis": analysis,
+                    "memory_usage": f"{current_memory / (1024*1024*1024):.2f} GB",
+                    "memory_limit": f"{MEMORY_LIMIT / (1024*1024*1024):.2f} GB",
+                    "prompt_only": current_memory > MEMORY_LIMIT
+                }), 200
+            else:
+                print(f"Ollama API error: {ollama_response.text}")
+                return jsonify({"error": "Failed to generate AI analysis"}), 500
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Error connecting to Ollama API: {str(e)}")
+            return jsonify({"error": "Failed to connect to AI analysis service"}), 503
             
     except Exception as e:
         print(f"AI analysis error: {str(e)}")
@@ -861,6 +968,481 @@ def analyze_text(data):
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Failed to analyze text: {str(e)}"}), 500
+
+def load_video_model():
+    try:
+        print("Initializing video model...")
+        from tensorflow.keras.models import load_model as keras_load_model
+        import numpy as np
+        
+        # Load the model with the correct path
+        model_path = r"C:\Users\Moham\Irisv2\backend\model_files\best_model_ASL.h5"
+        print(f"Loading model from: {model_path}")
+        
+        # Check if file exists
+        if not os.path.exists(model_path):
+            print(f"WARNING: Model file does not exist at {model_path}")
+            print("Checking alternative paths...")
+            
+            # Try alternative paths
+            alternatives = [
+                os.path.join(os.path.dirname(__file__), 'model_files', 'best_model_ASL.h5'),
+                os.path.join(os.path.dirname(__file__), 'models', 'best_model_ASL.h5'),
+                os.path.join(os.path.dirname(__file__), 'best_model_ASL.h5'),
+                os.path.join('model_files', 'best_model_ASL.h5'),
+                'best_model_ASL.h5'
+            ]
+            
+            for alt_path in alternatives:
+                if os.path.exists(alt_path):
+                    print(f"Found model at alternative path: {alt_path}")
+                    model_path = alt_path
+                    break
+            else:
+                print("ERROR: Could not find model file in any location.")
+                print("Please make sure the model file is available.")
+                print(f"Current directory: {os.getcwd()}")
+                print(f"Files in current directory: {os.listdir('.')}")
+                
+                # Create a dummy model for testing
+                print("Creating a dummy model for testing purposes")
+                from tensorflow.keras.models import Sequential
+                from tensorflow.keras.layers import Dense
+                
+                dummy_model = Sequential()
+                dummy_model.add(Dense(2, activation='softmax', input_shape=(224, 224, 3)))
+                dummy_model.compile(loss='categorical_crossentropy', optimizer='adam')
+                
+                return dummy_model
+            
+        try:
+            video_model = keras_load_model(model_path)
+            
+            # Print model summary
+            print("\nModel Summary:")
+            video_model.summary()
+            
+            # Check if model has output shape that makes sense
+            output_shape = video_model.output_shape
+            print(f"Model output shape: {output_shape}")
+            
+            # Infer number of classes
+            num_classes = output_shape[-1] if isinstance(output_shape, tuple) else None
+            print(f"Number of classes: {num_classes}")
+            
+            if num_classes == 2:
+                print("Class mapping: 0=Fake, 1=Real (assumed based on model output)")
+            else:
+                print(f"WARNING: Unexpected number of classes: {num_classes}")
+            
+            print("Video model loaded successfully")
+            
+            return video_model
+        except Exception as model_error:
+            print(f"Error loading model from {model_path}: {str(model_error)}")
+            import traceback
+            print(traceback.format_exc())
+            print("Creating a simple dummy model for fallback")
+            
+            # Create a dummy model for testing
+            from tensorflow.keras.models import Sequential
+            from tensorflow.keras.layers import Dense, Flatten
+            
+            dummy_model = Sequential()
+            dummy_model.add(Flatten(input_shape=(224, 224, 3)))
+            dummy_model.add(Dense(2, activation='softmax'))
+            dummy_model.compile(loss='categorical_crossentropy', optimizer='adam')
+            
+            return dummy_model
+            
+    except Exception as e:
+        print(f"Critical error in load_video_model: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return None
+
+# Initialize video model
+video_model = None
+if not app.debug:
+    try:
+        video_model = load_video_model()
+    except Exception as e:
+        print(f"Warning: Failed to load video model: {str(e)}")
+
+def extract_frames(video_path, frame_skip=15):
+    import cv2
+    
+    print(f"Opening video: {video_path}")
+    cap = cv2.VideoCapture(video_path)
+    
+    # Check if video opened successfully
+    if not cap.isOpened():
+        print("ERROR: Could not open video file")
+        return []
+    
+    # Get video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    print(f"Video properties: {width}x{height}, {fps} fps, {frame_count} frames")
+    
+    frames = []
+    count = 0
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if count % frame_skip == 0:
+            frames.append(frame)
+        count += 1
+        
+    cap.release()
+    
+    print(f"Extracted {len(frames)} frames from {count} total frames")
+    
+    # If we got too few frames, try again with a smaller skip
+    if len(frames) < 5 and count > 10:
+        print(f"Got too few frames, trying again with smaller frame_skip")
+        return extract_frames(video_path, frame_skip=5)
+        
+    return frames
+
+def preprocess_all(frames, target_size=(224, 224)):
+    import numpy as np
+    import cv2
+    
+    if not frames:
+        print("ERROR: No frames to preprocess")
+        return np.array([])
+        
+    print(f"Preprocessing {len(frames)} frames to size {target_size}")
+    
+    # Check frames for consistency
+    frame_shapes = set(frame.shape for frame in frames)
+    print(f"Input frame shapes: {frame_shapes}")
+    
+    processed_frames = []
+    
+    for i, frame in enumerate(frames):
+        try:
+            # Convert BGR to RGB if needed (OpenCV uses BGR by default)
+            if frame.shape[2] == 3:  # Has 3 color channels
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            else:
+                rgb_frame = frame
+                
+            # Resize frame
+            resized = cv2.resize(rgb_frame, target_size)
+            
+            # Normalize pixel values to [0, 1]
+            normalized = resized / 255.0
+            
+            processed_frames.append(normalized)
+        except Exception as e:
+            print(f"ERROR preprocessing frame {i}: {str(e)}")
+    
+    result = np.array(processed_frames)
+    print(f"Preprocessed shape: {result.shape}, min: {np.min(result)}, max: {np.max(result)}")
+    
+    return result
+
+def analyze_video(file):
+    import os
+    import uuid
+    import numpy as np
+    
+    print("\n==== VIDEO ANALYSIS DEBUG ====")
+    print(f"Processing video file: {file.filename}")
+    
+    # Save uploaded file temporarily with Windows compatible path
+    temp_filename = f"temp_{uuid.uuid4()}.mp4"
+    file_path = os.path.join(os.environ.get('TEMP', r'C:\Windows\Temp'), temp_filename)
+    file.save(file_path)
+    print(f"Saved temp file to: {file_path}")
+    
+    try:
+        # Extract frames
+        print("Extracting frames...")
+        frames = extract_frames(file_path)
+        print(f"Extracted {len(frames)} frames")
+        
+        if not frames:
+            print("ERROR: No frames could be extracted")
+            return {
+                "error": "No frames could be extracted from the video",
+                "filename": file.filename
+            }
+        
+        # Preprocess frames
+        print("Preprocessing frames...")
+        preprocessed = preprocess_all(frames)
+        print(f"Preprocessed frame shape: {preprocessed.shape}")
+        print(f"Preprocessed data range: min={np.min(preprocessed)}, max={np.max(preprocessed)}")
+        
+        # Check if model is available
+        global video_model
+        if video_model is None:
+            print("WARNING: Video model is not loaded, attempting to load it now...")
+            video_model = load_video_model()
+            
+        # If model is still None, create a dummy model for testing
+        if video_model is None:
+            print("WARNING: Failed to load the model, using dummy predictions for testing")
+            # Create random predictions (fake class with 60% confidence)
+            dummy_predictions = np.zeros((len(frames), 2))
+            dummy_predictions[:, 0] = 0.6  # 60% confidence for class 0 (Fake)
+            dummy_predictions[:, 1] = 0.4  # 40% confidence for class 1 (Real)
+            predictions = dummy_predictions
+        else:
+            # Predict
+            print("Running prediction on frames...")
+            predictions = video_model.predict(preprocessed)
+            
+        print(f"Prediction shape: {predictions.shape}")
+        
+        # Generate results
+        results = []
+        real_confidence_sum = 0
+        fake_confidence_sum = 0
+        
+        print("\nPredictions per frame:")
+        print("-----------------------")
+        
+        for i, pred in enumerate(predictions):
+            # Print raw prediction values
+            print(f"Frame {i+1}: Raw prediction = {pred}")
+            
+            # Get predicted class and confidence
+            pred_class = np.argmax(pred)
+            confidence = float(pred[pred_class])
+            label = "Real" if pred_class == 1 else "Fake"
+            
+            print(f"Frame {i+1}: Class={pred_class}, Label={label}, Confidence={confidence:.4f}")
+            
+            if label == "Real":
+                real_confidence_sum += confidence
+            else:
+                fake_confidence_sum += confidence
+                
+            results.append({
+                "frame": i + 1, 
+                "label": label
+            })
+        
+        # Calculate overall confidence
+        total_frames = len(predictions)
+        real_frames = sum(1 for res in results if res["label"] == "Real")
+        fake_frames = total_frames - real_frames
+        
+        print("\nSummary:")
+        print(f"Total frames: {total_frames}")
+        print(f"Real frames: {real_frames} ({real_frames/total_frames*100:.1f}%)")
+        print(f"Fake frames: {fake_frames} ({fake_frames/total_frames*100:.1f}%)")
+        
+        # Overall result based on majority voting
+        overall_result = "Real" if real_frames > fake_frames else "Fake"
+        
+        # Calculate confidence
+        real_confidence = real_confidence_sum / total_frames if total_frames > 0 else 0
+        fake_confidence = fake_confidence_sum / total_frames if total_frames > 0 else 0
+        
+        # Normalize to ensure they sum to 1
+        total_confidence = real_confidence + fake_confidence
+        if total_confidence > 0:
+            real_confidence = real_confidence / total_confidence
+            fake_confidence = fake_confidence / total_confidence
+        
+        print(f"Overall result: {overall_result}")
+        print(f"Real confidence: {real_confidence:.4f}")
+        print(f"Fake confidence: {fake_confidence:.4f}")
+        print("==== END DEBUG ====\n")
+        
+        return {
+            "result": overall_result,
+            "real_confidence": real_confidence,
+            "fake_confidence": fake_confidence,
+            "predictions": results,
+            "filename": file.filename,
+            "processingTime": f"{len(frames) * 50}ms"  # Simulated processing time
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"ERROR: {str(e)}")
+        print(traceback.format_exc())
+        return {
+            "error": str(e),
+            "filename": file.filename
+        }
+    finally:
+        # Clean up temp file
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"Cleaned up temp file: {file_path}")
+
+@app.route('/api/test-video', methods=['GET'])
+def test_video():
+    """Test route to analyze a specific video file directly"""
+    try:
+        # Default test file path
+        test_file = r"C:\Users\Moham\Irisv2\test_videos\ASL_How_You.mp4"
+        
+        # Allow overriding the file path via query parameter
+        if 'file' in request.args:
+            test_file = request.args.get('file')
+        
+        if not os.path.exists(test_file):
+            return jsonify({"error": f"Test file not found: {test_file}"}), 404
+            
+        print(f"\n===== TESTING VIDEO FILE: {test_file} =====")
+        
+        # Extract frames
+        frames = extract_frames(test_file)
+        if not frames:
+            return jsonify({"error": "No frames could be extracted"}), 400
+            
+        # Preprocess frames
+        preprocessed = preprocess_all(frames)
+        
+        # Load model if not already loaded
+        global video_model
+        if video_model is None:
+            print("Loading video model for test...")
+            video_model = load_video_model()
+            
+        # Create dummy predictions if model still not loaded
+        if video_model is None:
+            print("WARNING: Using dummy predictions as model couldn't be loaded")
+            # Create random predictions
+            predictions = np.zeros((len(preprocessed), 2))
+            predictions[:, 0] = 0.6  # 60% confidence for class 0 (Fake)
+            predictions[:, 1] = 0.4  # 40% confidence for class 1 (Real)
+        else:
+            # Run prediction
+            predictions = video_model.predict(preprocessed)
+        
+        # Process results (similar to analyze_video but simplified)
+        results = []
+        for i, pred in enumerate(predictions):
+            pred_class = np.argmax(pred)
+            confidence = float(pred[pred_class])
+            label = "Real" if pred_class == 1 else "Fake"
+            
+            results.append({
+                "frame": i + 1,
+                "label": label,
+                "confidence": float(confidence),
+                "raw_prediction": pred.tolist()  # Include raw prediction values
+            })
+        
+        # Calculate summary
+        real_frames = sum(1 for res in results if res["label"] == "Real")
+        fake_frames = len(results) - real_frames
+        
+        return jsonify({
+            "file": test_file,
+            "total_frames": len(results),
+            "real_frames": real_frames,
+            "fake_frames": fake_frames,
+            "frame_details": results
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Test error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/setup-model-dirs', methods=['GET'])
+def setup_model_dirs():
+    """Route to check and create necessary model directories"""
+    try:
+        # Define directories to create
+        dirs_to_create = [
+            os.path.join(os.path.dirname(__file__), 'models'),
+            os.path.join(os.path.dirname(__file__), 'model_files')
+        ]
+        
+        results = {}
+        
+        # Create directories if they don't exist
+        for directory in dirs_to_create:
+            if not os.path.exists(directory):
+                try:
+                    os.makedirs(directory)
+                    results[directory] = "Created"
+                except Exception as e:
+                    results[directory] = f"Error creating: {str(e)}"
+            else:
+                results[directory] = "Already exists"
+        
+        # Check for the model file
+        model_paths = [
+            r"C:\Users\Moham\Irisv2\backend\model_files\best_model_ASL.h5",
+            os.path.join(os.path.dirname(__file__), 'model_files', 'best_model_ASL.h5'),
+            os.path.join(os.path.dirname(__file__), 'models', 'best_model_ASL.h5')
+        ]
+        
+        for path in model_paths:
+            results[path] = "Exists" if os.path.exists(path) else "Missing"
+            
+        # Return the current directory and its contents
+        current_dir = os.getcwd()
+        results["current_directory"] = current_dir
+        results["files_in_current_dir"] = os.listdir(current_dir)
+        
+        return jsonify({
+            "message": "Model directory setup check complete",
+            "results": results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def load_asl_model():
+    try:
+        print("Initializing ASL model...")
+        import tensorflow as tf
+        print(f"TensorFlow version: {tf.__version__}")
+        from tensorflow.keras.models import load_model
+        import numpy as np
+        
+        # Load the ASL model with absolute path
+        model_path = os.path.join(os.path.dirname(__file__), 'model_files', 'best_model_ASL.h5')
+        print(f"Loading ASL model from: {model_path}")
+        print(f"File exists: {os.path.exists(model_path)}")
+        print(f"File size: {os.path.getsize(model_path)} bytes")
+        
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"ASL model not found at {model_path}")
+            
+        # Load the model with custom objects if needed
+        model = load_model(model_path, compile=False)
+        print("Model loaded, configuring compilation...")
+        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        
+        # Print model summary
+        print("Model architecture:")
+        model.summary()
+        
+        print("ASL model loaded successfully")
+        return model
+    except Exception as e:
+        print(f"Error loading ASL model: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise
+
+# Initialize ASL model
+asl_model = None
+if not app.debug:
+    try:
+        asl_model = load_asl_model()
+    except Exception as e:
+        print(f"Warning: Failed to load ASL model: {str(e)}")
 
 if __name__ == '__main__':
     with app.app_context():

@@ -6,20 +6,28 @@ export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   // Add logout function
   const logout = () => {
     setIsAuthenticated(false);
+    setUser(null);
     navigate('/');
+  };
+
+  // Login function to set both authentication and user info
+  const login = (userData) => {
+    setIsAuthenticated(true);
+    setUser(userData);
   };
 
   // Only redirect to login for protected routes
   useEffect(() => {
     // Remove '/predict/image' from protected routes to allow guest access
     const protectedRoutes = ['/account']; // Only truly protected routes
-    const isProtectedRoute = protectedRoutes.some(route => 
+    const isProtectedRoute = protectedRoutes.some(route =>
       location.pathname.startsWith(route)
     );
 
@@ -31,6 +39,9 @@ export const AuthProvider = ({ children }) => {
   const value = {
     isAuthenticated,
     setIsAuthenticated,
+    user,
+    setUser,
+    login,
     logout // Add logout to context value
   };
 

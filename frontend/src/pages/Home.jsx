@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import dimaImage from '../assets/Dima Image Thumnail.png';
 
 /**
  * Home page component
@@ -69,6 +70,19 @@ const Home = () => {
             >
               Learn about IrisAI
             </motion.button>
+
+            <motion.button
+              onClick={() => {
+                navigate('/how-it-works');
+                window.scrollTo(0, 0);
+              }}
+              className="px-6 py-3 bg-white text-black rounded-full font-semibold hover:bg-gray-200 transition-colors"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+            >
+              How It Works
+            </motion.button>
           </div>
 
           {/* Date and Type */}
@@ -114,35 +128,55 @@ const Home = () => {
       {/* Dima Section */}
       <div id="dima-section" className="w-full bg-white">
         <div className="max-w-6xl mx-auto px-4 py-24">
-          <div className="flex flex-col items-start">
-            <motion.h2
-              className="text-6xl font-bold mb-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
-              Introducing Dima
-            </motion.h2>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+            <div className="flex flex-col items-start">
+              <motion.h2
+                className="text-6xl font-bold mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                Introducing Dima
+              </motion.h2>
 
-            <div className="flex items-center gap-4 mt-4 mb-12">
-              <span className="text-gray-600">Product</span>
-              <span className="text-gray-400">Feb 2, 2025</span>
-              <span className="text-gray-400">8 min read</span>
+              <div className="flex items-center gap-4 mt-4 mb-12">
+                <span className="text-gray-600">Product</span>
+                <span className="text-gray-400">Feb 2, 2025</span>
+                <span className="text-gray-400">8 min read</span>
+              </div>
+
+              {/* Learn More Button */}
+              <motion.button
+                onClick={() => {
+                  navigate('/introducedima');
+                  window.scrollTo(0, 0);
+                }}
+                className="px-6 py-3 bg-gray-100 rounded-full text-gray-900 hover:bg-gray-200 transition-all flex items-center gap-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                Learn more <span className="text-lg">↓</span>
+              </motion.button>
             </div>
 
-            {/* Learn More Button */}
-            <motion.button
-              onClick={() => {
-                const element = document.getElementById('research-section');
-                element?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="px-6 py-3 bg-gray-100 rounded-full text-gray-900 hover:bg-gray-200 transition-all flex items-center gap-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
+            {/* Dima Image */}
+            <motion.div
+              className="w-full md:w-1/2 mt-8 md:mt-0"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
             >
-              Learn more <span className="text-lg">↓</span>
-            </motion.button>
+              <img
+                src={dimaImage}
+                alt="Dima AI Visualization"
+                className="max-w-xl h-140 rounded-lg object-cover ml-20"
+                style={{
+                  border: '1px solid #e0e0e0',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)'
+                }}
+              />
+            </motion.div>
           </div>
         </div>
       </div>

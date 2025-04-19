@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from './AuthContext';
 import PasswordInput from '../common/PasswordInput';
 import { GoogleLogin } from '@react-oauth/google';
 import LockoutScreen from './LockoutScreen';
@@ -16,6 +17,7 @@ import OTPVerification from './OTPVerification';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -30,7 +32,7 @@ const Login = () => {
     setError('');
     try {
       // Attempting to login with user inputs {formData}
-      console.log('Attempting login with:', formData);  
+      console.log('Attempting login with:', formData);
       const response = await fetch(API_URLS.login, {
         method: 'POST',
         credentials: 'include',
@@ -57,12 +59,20 @@ const Login = () => {
             otpSecret: data.otpSecret
           });
         } else {
+          // Create user object with available information
+          const userData = {
+            name: data.username || formData.username,
+            email: data.email || formData.username
+          };
+
+          // Call the login function from context to set authenticated and user data
+          login(userData);
           navigate('/');
         }
 
       } else if (response.status === 429) {
         //* 429: Too many requests, incurs lockout
-        setLockoutUntil(new Date(data.lockoutUntil)); 
+        setLockoutUntil(new Date(data.lockoutUntil));
       } else {
         //* 401: Unauthorized, login failure incurs 15 min lockout
         setFailedAttempts(prev => prev + 1);
@@ -161,9 +171,17 @@ const Login = () => {
             <GoogleLogin
               onSuccess={credentialResponse => {
                 console.log(credentialResponse);
+                // Handle Google login with user data
+                const userData = {
+                  name: "Google User",
+                  email: "google@example.com" // In a real app, you'd decode the JWT and extract email
+                };
+                login(userData);
+                navigate('/');
               }}
               onError={() => {
                 console.log('Login Failed');
+                setError('Google login failed. Please try again.');
               }}
             />
           </div>

@@ -15,8 +15,8 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // Array for 6 digits
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { setIsAuthenticated } = useContext(AuthContext);
-  
+  const { login } = useContext(AuthContext);
+
   // Fix the QR code URL format to be compatible with authenticator apps
   const otpAuthUrl = `otpauth://totp/${encodeURIComponent('IrisAI')}:${encodeURIComponent(username)}?secret=${otpSecret}&issuer=${encodeURIComponent('IrisAI')}&algorithm=SHA1&digits=6&period=30`;
 
@@ -47,7 +47,7 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
     e.preventDefault();
     setError('');
     const otpString = otp.join('');
-    
+
     console.log('Frontend - Submitting OTP:', {
       username,
       otpProvided: otpString,
@@ -71,11 +71,18 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
       console.log('Frontend - Server Response:', data);
 
       if (response.ok) {
-        setIsAuthenticated(true);
-        navigate('/home', { 
-          replace: true, 
+        // Create user data object
+        const userData = {
+          name: data.username || username,
+          email: data.email || username
+        };
+
+        // Login with user data
+        login(userData);
+        navigate('/home', {
+          replace: true,
           state: { username }
-        }); 
+        });
       } else {
         setError(data.message || 'Invalid OTP code');
       }
@@ -97,7 +104,7 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
 
       <div className="flex flex-col items-center space-y-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow-md">
-          <QRCodeSVG 
+          <QRCodeSVG
             value={otpAuthUrl}
             size={200}
             level="H"
@@ -116,7 +123,7 @@ const OTPVerification = ({ username, otpSecret, onBack }) => {
             {error}
           </div>
         )}
-        
+
         <div className="flex justify-center space-x-2">
           {otp.map((digit, index) => (
             <input
