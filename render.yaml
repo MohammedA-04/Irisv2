@@ -6,9 +6,11 @@ services:
     region: oregon
     plan: free
     buildCommand: cd backend && bash build_render.sh
-    startCommand: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     healthCheckPath: /api/health
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
       - key: PORT
         value: 10000
       - key: NODE_ENV
@@ -16,6 +18,8 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: MONGODB_URI
+        sync: false
+      - key: DATABASE_URL
         sync: false
 
   # Frontend Web Application
@@ -25,7 +29,7 @@ services:
     region: oregon
     plan: free
     buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm run start
+    startCommand: npx serve -s build
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
