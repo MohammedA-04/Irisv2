@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+# Handle client-side routing for React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  
+# Environment variables can be set here or in the Netlify dashboard
+[build.environment]
+  REACT_APP_API_URL = "https://iris-backend.vercel.app/api" 

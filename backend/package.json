@@ -1,0 +1,7 @@
+{
+    "scripts": {
+        "deploy:vercel": "vercel --prod",
+        "deploy:render": "echo 'Please deploy via the Render dashboard'",
+        "deploy:railway": "railway up"
+    }
+}
