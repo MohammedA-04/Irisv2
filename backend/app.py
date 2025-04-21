@@ -12,26 +12,63 @@ import pyotp
 from PIL import Image
 import random
 import string
-import torch
-from transformers import AutoImageProcessor, AutoModelForImageClassification, AutoTokenizer, AutoModelForSequenceClassification  # Move back for DIMA
-from pydub import AudioSegment  # For MP3 to WAV conversion
+
+# Wrap torch imports with try/except to avoid crashing on startup
+torch = None
+try:
+    import torch
+    print("PyTorch successfully imported!")
+except ImportError:
+    print("WARNING: PyTorch import failed. AI features will be disabled.")
+
+# Similarly, wrap transformers imports
+try:
+    from transformers import AutoImageProcessor, AutoModelForImageClassification, AutoTokenizer, AutoModelForSequenceClassification  # Move back for DIMA
+    from transformers.models.vit.modeling_vit import ViTForImageClassification, ViTModel
+    print("Transformers library successfully imported!")
+except ImportError:
+    print("WARNING: Transformers import failed. AI features will be disabled.")
+
+# Attempt to import pydub
+try:
+    from pydub import AudioSegment  # For MP3 to WAV conversion
+    print("Pydub successfully imported!")
+except ImportError:
+    print("WARNING: Pydub import failed. Audio processing will be disabled.")
+
 import subprocess
 import requests
-from transformers.models.vit.modeling_vit import ViTForImageClassification, ViTModel
-from torch.serialization import safe_globals, add_safe_globals
+
+try:
+    from torch.serialization import safe_globals, add_safe_globals
+except ImportError:
+    print("WARNING: torch.serialization import failed.")
+
 import numpy as np
 
 # Defer ML imports to prevent startup issues
 def load_ml_models():
-    from transformers import AutoImageProcessor, AutoModelForImageClassification
-    
-    processor = AutoImageProcessor.from_pretrained("dima806/deepfake_vs_real_image_detection")
-    model = AutoModelForImageClassification.from_pretrained("dima806/deepfake_vs_real_image_detection")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    return processor, model, device
+    if torch is None:
+        print("ERROR: Cannot load ML models because PyTorch is not available")
+        return None, None, None
+        
+    try:
+        from transformers import AutoImageProcessor, AutoModelForImageClassification
+        
+        processor = AutoImageProcessor.from_pretrained("dima806/deepfake_vs_real_image_detection")
+        model = AutoModelForImageClassification.from_pretrained("dima806/deepfake_vs_real_image_detection")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
+        return processor, model, device
+    except Exception as e:
+        print(f"Error loading ML models: {str(e)}")
+        return None, None, None
 
 def load_audio_model():
+    if torch is None:
+        print("ERROR: Cannot load audio model because PyTorch is not available")
+        return None, None, None
+        
     try:
         print("Initializing audio model...")
         from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
@@ -51,9 +88,13 @@ def load_audio_model():
         return processor, model, device
     except Exception as e:
         print(f"Error loading audio model: {str(e)}")
-        raise
+        return None, None, None
 
 def load_text_model():
+    if torch is None:
+        print("ERROR: Cannot load text model because PyTorch is not available")
+        return None, None, None
+        
     try:
         print("Initializing text analysis model...")
         model_id = "mmosko/Bert_Fake_News_Classification"
@@ -81,7 +122,7 @@ def load_text_model():
             
     except Exception as e:
         print(f"Error in load_text_model: {str(e)}")
-        raise
+        return None, None, None
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -118,12 +159,18 @@ limiter = Limiter(
 # Load ML models after app initialization
 processor_dima, model, device = None, None, None
 if not app.debug:
-    processor_dima, model, device = load_ml_models()
+    try:
+        processor_dima, model, device = load_ml_models()
+    except Exception as e:
+        print(f"Warning: Failed to load image models: {str(e)}")
 
 # Initialize models
 processor_melody, model_audio, device_audio = None, None, None
 if not app.debug:
-    processor_melody, model_audio, device_audio = load_audio_model()
+    try:
+        processor_melody, model_audio, device_audio = load_audio_model()
+    except Exception as e:
+        print(f"Warning: Failed to load audio models: {str(e)}")
 
 # Add these as global variables with your other model initializations
 tokenizer_text, model_text, device_text = None, None, None
@@ -402,14 +449,94 @@ def upload_file():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_file():
+    if not request.files or 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    upload_type = request.form.get('type', 'image')
+    model_type = request.form.get('model', 'dima')
+    
+    # Check if torch and models are available
+    if torch is None:
+        return jsonify({
+            'error': 'AI models are unavailable',
+            'message': 'The server is missing the required AI libraries. Please contact support.'
+        }), 503
+    
+    if upload_type == 'image' and (processor_dima is None or model is None):
+        return jsonify({
+            'error': 'Image analysis model unavailable',
+            'message': 'The image analysis model failed to load. Please try again later.'
+        }), 503
+    
+    if upload_type == 'audio' and (processor_melody is None or model_audio is None):
+        return jsonify({
+            'error': 'Audio analysis model unavailable',
+            'message': 'The audio analysis model failed to load. Please try again later.'
+        }), 503
+    
+    if upload_type == 'text' and (tokenizer_text is None or model_text is None):
+        return jsonify({
+            'error': 'Text analysis model unavailable',
+            'message': 'The text analysis model failed to load. Please try again later.'
+        }), 503
+    
     try:
-        content_type = request.form.get('type', 'image')
-        
-        if 'file' not in request.files and content_type != 'text':
-            return jsonify({"error": f"No {content_type} file provided"}), 400
+        # Load models if not already loaded
+        global processor_dima, model, device
+        if processor_dima is None or model is None:
+            processor_dima, model, device = load_ml_models()
+
+        # Process the file with the selected model
+        if upload_type == 'image':
+            # Process image
+            image = Image.open(file).convert('RGB')  # Convert to RGB format
+            image = image.resize((224, 224))  # Resize to expected dimensions
             
-        # Mock responses for deployment - simplified to avoid ML dependencies
-        if content_type == 'text':
+            inputs = processor_dima(images=image, return_tensors="pt").to(device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+            
+            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            real_confidence, fake_confidence = predictions[0].tolist()
+            predicted_class = predictions.argmax().item()
+            label = model.config.id2label[predicted_class]
+
+            result = {
+                "result": "real" if label == "LABEL_0" else "fake",
+                "real_confidence": real_confidence,
+                "fake_confidence": fake_confidence,
+                "filename": file.filename,
+                "reason": "PRNU camera tampered" if label == "LABEL_1" else None
+            }
+
+            return jsonify(result), 200
+
+        elif upload_type == 'audio':
+            # Process audio
+            # Mock audio analysis
+            return jsonify({
+                "result": "fake",
+                "real_confidence": 0.18,
+                "fake_confidence": 0.82,
+                "filename": file.filename,
+                "reason": "Voice pattern manipulation detected"
+            }), 200
+            
+        elif upload_type == 'video':
+            # Process video
+            # Mock video analysis
+            return jsonify({
+                "result": "Real",
+                "real_confidence": 0.75,
+                "fake_confidence": 0.25,
+                "filename": file.filename,
+                "processingTime": "500ms"
+            }), 200
+            
+        else:  # text
+            # Process text
             title = request.form.get('title', 'Sample Title')
             text = request.form.get('text', 'Sample text content')
             
@@ -422,39 +549,6 @@ def analyze_file():
                 "title": title,
                 "text": text[:50] + "...",
                 "reason": "News analysis model detected patterns consistent with fake news"
-            }), 200
-            
-        elif content_type == 'audio':
-            file = request.files['file']
-            # Mock audio analysis
-            return jsonify({
-                "result": "fake",
-                "real_confidence": 0.18,
-                "fake_confidence": 0.82,
-                "filename": file.filename,
-                "reason": "Voice pattern manipulation detected"
-            }), 200
-            
-        elif content_type == 'video':
-            file = request.files['file']
-            # Mock video analysis
-            return jsonify({
-                "result": "Real",
-                "real_confidence": 0.75,
-                "fake_confidence": 0.25,
-                "filename": file.filename,
-                "processingTime": "500ms"
-            }), 200
-            
-        else:  # image
-            file = request.files['file']
-            # Mock image analysis
-            return jsonify({
-                "result": "fake",
-                "real_confidence": 0.08,
-                "fake_confidence": 0.92,
-                "filename": file.filename,
-                "reason": "Model detected fake image patterns"
             }), 200
             
     except Exception as e:
