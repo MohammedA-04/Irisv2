@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: iris-backend
+    env: python
+    region: ohio
+    plan: free
+    buildCommand: |
+      # Install dependencies
+      pip install -r requirements-deploy.txt
+      
+      # Create model directories
+      mkdir -p model_files
+      
+      # Initialize database
+      python init_db.py
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: 0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: 10000 

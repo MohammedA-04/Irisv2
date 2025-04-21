@@ -3,96 +3,23 @@ import re
 import enum
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
-from flask_cors import CORS, cross_origin
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy 
 import bcrypt as bcrypt_lib
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import pyotp
-from PIL import Image
-import random
-import string
-import torch
-from transformers import AutoImageProcessor, AutoModelForImageClassification, AutoTokenizer, AutoModelForSequenceClassification  # Move back for DIMA
-from pydub import AudioSegment  # For MP3 to WAV conversion
-import subprocess
 import requests
-from transformers.models.vit.modeling_vit import ViTForImageClassification, ViTModel
-from torch.serialization import safe_globals, add_safe_globals
-import numpy as np
-
-# Defer ML imports to prevent startup issues
-def load_ml_models():
-    from transformers import AutoImageProcessor, AutoModelForImageClassification
-    
-    processor = AutoImageProcessor.from_pretrained("dima806/deepfake_vs_real_image_detection")
-    model = AutoModelForImageClassification.from_pretrained("dima806/deepfake_vs_real_image_detection")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    return processor, model, device
-
-def load_audio_model():
-    try:
-        print("Initializing audio model...")
-        from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
-        
-        processor = AutoFeatureExtractor.from_pretrained(
-            "MelodyMachine/Deepfake-audio-detection-V2",
-            trust_remote_code=True
-        )
-        model = AutoModelForAudioClassification.from_pretrained(
-            "MelodyMachine/Deepfake-audio-detection-V2",
-            trust_remote_code=True
-        )
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {device}")
-        model.to(device)
-        print("Audio model loaded successfully")
-        return processor, model, device
-    except Exception as e:
-        print(f"Error loading audio model: {str(e)}")
-        raise
-
-def load_text_model():
-    try:
-        print("Initializing text analysis model...")
-        model_id = "mmosko/Bert_Fake_News_Classification"
-        
-        # Load tokenizer and model with proper error handling
-        try:
-            tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-            model = AutoModelForSequenceClassification.from_pretrained(model_id)
-            
-            # Update label mapping
-            model.config.id2label = {
-                0: "Fake News",
-                1: "Real News",
-                2: "Undecided"
-            }
-            model.config.label2id = {v: k for k, v in model.config.id2label.items()}
-            
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            model.to(device)
-            print("Text analysis model loaded successfully")
-            return tokenizer, model, device
-        except Exception as e:
-            print(f"Failed to load model or tokenizer: {str(e)}")
-            raise
-            
-    except Exception as e:
-        print(f"Error in load_text_model: {str(e)}")
-        raise
 
 # Initialize Flask app
 app = Flask(__name__)
-# Load environment variables
-# app.config['ENV'] = os.environ.get('FLASK_ENV', 'development')
-# app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', '1') == '1'
 app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///iris.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+# Configure CORS
 CORS(app, 
     resources={
         r"/api/*": {
@@ -100,7 +27,7 @@ CORS(app,
                 "http://localhost:3000",
                 "https://iris-frontend.netlify.app",
                 "https://your-netlify-app.netlify.app"
-            ],  # Frontend URLs allowed
+            ],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True
@@ -114,24 +41,6 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"]
 )
-
-# Load ML models after app initialization
-processor_dima, model, device = None, None, None
-if not app.debug:
-    processor_dima, model, device = load_ml_models()
-
-# Initialize models
-processor_melody, model_audio, device_audio = None, None, None
-if not app.debug:
-    processor_melody, model_audio, device_audio = load_audio_model()
-
-# Add these as global variables with your other model initializations
-tokenizer_text, model_text, device_text = None, None, None
-if not app.debug:
-    try:
-        tokenizer_text, model_text, device_text = load_text_model()
-    except Exception as e:
-        print(f"Warning: Failed to load text model: {str(e)}")
 
 # Enums
 class UploadType(enum.Enum):
@@ -179,11 +88,12 @@ class Content(db.Model):
     model_applied = db.Column(db.Enum(ModelApplied), nullable=False)
     user = db.relationship('User', backref=db.backref('contents', lazy=True))
 
-# Routes
+# Health check route
 @app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({"status": "ok", "message": "API is running", "version": "1.0.0"}), 200
+def health():
+    return jsonify({"status": "ok", "message": "API is running"}), 200
 
+# Routes
 @app.route('/api/register', methods=['POST'])
 @limiter.limit("5 per minute")
 def register():
@@ -239,16 +149,10 @@ def register():
         except Exception as e:
             db.session.rollback()
             print(f"Database error during user creation: {str(e)}")
-            print(f"Error type: {type(e)}")
-            import traceback
-            print(traceback.format_exc())
             return jsonify({"message": "Error creating account"}), 500
 
     except Exception as e:
         print(f"Server error in registration: {str(e)}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        print(traceback.format_exc())
         return jsonify({"message": "Server error occurred"}), 500
 
 @app.route('/api/login', methods=['POST'])
@@ -286,9 +190,6 @@ def login():
         "requireOTP": True,
         "otpSecret": user.otp_secret
     }), 200
-
-# Time offset in seconds to handle server/client time differences
-TIME_OFFSET = 30  # Adjust this value based on your time difference
 
 @app.route('/api/verify-otp', methods=['POST'])
 def verify_otp():
@@ -351,54 +252,6 @@ def verify_otp():
             "provided_code": otp_code
         }
     }), 400
-
-@app.route('/api/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({"error": "No file selected"}), 400
-
-    try:
-        # Load models if not already loaded
-        global processor_dima, model, device
-        if processor_dima is None or model is None:
-            processor_dima, model, device = load_ml_models()
-
-        # Process the image with proper error handling
-        try:
-            image = Image.open(file).convert('RGB')  # Convert to RGB format
-            image = image.resize((224, 224))  # Resize to expected dimensions
-            
-            inputs = processor_dima(images=image, return_tensors="pt").to(device)
-
-            with torch.no_grad():
-                outputs = model(**inputs)
-            
-            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-            real_confidence, fake_confidence = predictions[0].tolist()
-            predicted_class = predictions.argmax().item()
-            label = model.config.id2label[predicted_class]
-
-            result = {
-                "result": "real" if label == "LABEL_0" else "fake",
-                "real_confidence": real_confidence,
-                "fake_confidence": fake_confidence,
-                "filename": file.filename,
-                "reason": "PRNU camera tampered" if label == "LABEL_1" else None
-            }
-
-            return jsonify(result), 200
-
-        except Exception as img_error:
-            print(f"Image processing error: {str(img_error)}")
-            return jsonify({"error": "Failed to process image. Please ensure it's a valid image file."}), 400
-
-    except Exception as e:
-        print(f"Server error: {str(e)}")
-        return jsonify({"error": "Server error occurred"}), 500
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_file():
