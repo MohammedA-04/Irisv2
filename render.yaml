@@ -5,7 +5,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r backend/requirements-deploy.txt && python init_db.py
+    buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r backend/requirements-deploy.txt torch transformers pydub && python init_db.py
     startCommand: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT
     healthCheckPath: /api/health
     envVars:
