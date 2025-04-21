@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FaImage, FaCode, FaRobot, FaShieldAlt, FaPlay, FaPause, FaShare, F } from 'react-icons/fa';
+import { FaImage, FaCode, FaRobot, FaShieldAlt, FaPlay, FaPause, FaShare } from 'react-icons/fa';
 import { SiTarget } from "react-icons/si";
 import { FaQuestion } from "react-icons/fa";
 import RobotThink from '../assets/Robot Think.png';

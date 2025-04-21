@@ -14,7 +14,7 @@ import OTPSetup from './OTPSetup';
  */
 
 const Register = ({ onSwitchToLogin }) => {
-  
+
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
@@ -170,11 +170,11 @@ const Register = ({ onSwitchToLogin }) => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
-            <PasswordInput
-              value={formData.password}
-              onChange={handleChange}
-              name="password"
-            />
+            PasswordInput
+            value={formData.password}
+            onChange={handleChange}
+            name="password"
+            /
             <div className={passwordStrength.className}></div>
             <p className={`text-sm mt-1 ${passwordStrength.textColor}`}>
               {passwordStrength.feedback}

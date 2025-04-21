@@ -64,6 +64,7 @@ const Navbar = () => {
             >
               How it Works
             </Link>
+
             <div className="flex items-center mx-5">
               <Link
                 to="/predict/image"
@@ -72,6 +73,7 @@ const Navbar = () => {
               >
                 Predict
               </Link>
+
               {/* Larger brain icon in the middle */}
               <img
                 src={brainIcon}
@@ -84,7 +86,7 @@ const Navbar = () => {
               />
             </div>
             <Link
-              to="/press"
+              to="/guide"
               className="text-white hover:text-black hover:bg-lime-400 transition-all duration-200 mx-5"
               style={navLinkStyle}
             >

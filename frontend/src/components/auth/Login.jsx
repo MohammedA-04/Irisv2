@@ -4,7 +4,6 @@ import { AuthContext } from './AuthContext';
 import PasswordInput from '../common/PasswordInput';
 import { GoogleLogin } from '@react-oauth/google';
 import LockoutScreen from './LockoutScreen';
-import Notification from '../common/Notification';
 import { API_URLS } from '../../config/api';
 import OTPVerification from './OTPVerification';
 

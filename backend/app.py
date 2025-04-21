@@ -214,7 +214,7 @@ def register():
             new_user = User(
                 username=username,
                 email=email,
-                password_hash=hashed_password,
+                password_hash=hash_password(password),
                 otp_secret=otp_secret
             )
             

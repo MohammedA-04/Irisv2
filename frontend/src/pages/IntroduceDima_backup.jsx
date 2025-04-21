@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FaImage, FaCode, FaRobot, FaShieldAlt, FaPlay, FaPause, FaShare } from 'react-icons/fa';
+import { FaImage, FaCode, FaRobot, FaShieldAlt, FaPlay, FaPause, FaShare, F } from 'react-icons/fa';
 import { SiTarget } from "react-icons/si";
 import { FaQuestion } from "react-icons/fa";
 import { TbBowFilled } from "react-icons/tb";
@@ -13,10 +13,6 @@ import fake2Img from '../assets/F2.jpg';
 import real1Img from '../assets/R1.jpg';
 import real2Img from '../assets/R2.jpg';
 import dimaNail from '../assets/Dima Thumbnail.png'
-
-// Fix the motion components
-const motionButton = motion.button;
-const motionDiv = motion.div;
 
 const IntroduceDima = () => {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -255,7 +251,7 @@ These algorithms work in concert to provide a comprehensive assessment of any im
                     <div className="space-y-20">
                         {sections.map((section, index) => (
                             <div key={section.id}>
-                                <motionDiv
+                                <motion.div
                                     className="flex flex-col md:flex-row gap-8 items-start"
                                     initial={{ opacity: 0, y: 30 }}
                                     whileInView={{ opacity: 1, y: 0 }}
@@ -269,7 +265,7 @@ These algorithms work in concert to provide a comprehensive assessment of any im
                                     <div className="md:w-2/3">
                                         {renderSectionContent(section)}
                                     </div>
-                                </motionDiv>
+                                </motion.div>
                                 {index !== sections.length - 1 && (
                                     <div className="mt-20 w-full flex justify-center">
                                         <div className="w-11/12 h-px bg-black/50"></div>
@@ -286,22 +282,22 @@ These algorithms work in concert to provide a comprehensive assessment of any im
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <h2 className="text-3xl font-bold mb-8 text-white">Experience IrisAI's Deepfake Detection</h2>
                     <div className="flex flex-wrap justify-center gap-4">
-                        <motionButton
+                        <motion.button
                             onClick={() => window.location.href = '/predict/image'}
                             className="px-8 py-3 bg-white text-black rounded-lg font-semibold hover:bg-gray-200 transition-colors"
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                         >
                             Try IrisAI Now
-                        </motionButton>
-                        <motionButton
+                        </motion.button>
+                        <motion.button
                             onClick={() => window.location.href = '/guide'}
                             className="px-8 py-3 bg-neutral-800 text-white rounded-lg font-semibold hover:bg-neutral-700 transition-colors"
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                         >
                             Learn More
-                        </motionButton>
+                        </motion.button>
                     </div>
                 </div>
             </div>
