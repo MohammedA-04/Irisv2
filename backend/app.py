@@ -449,6 +449,11 @@ def upload_file():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_file():
+    # Declare ML models as global at the beginning of the function
+    global processor_dima, model, device
+    global processor_melody, model_audio, device_audio
+    global tokenizer_text, model_text, device_text
+
     if not request.files or 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
     
@@ -463,6 +468,7 @@ def analyze_file():
             'message': 'The server is missing the required AI libraries. Please contact support.'
         }), 503
     
+    # Check model availability *after* global declaration
     if upload_type == 'image' and (processor_dima is None or model is None):
         return jsonify({
             'error': 'Image analysis model unavailable',
@@ -482,10 +488,10 @@ def analyze_file():
         }), 503
     
     try:
-        # Load models if not already loaded
-        global processor_dima, model, device
+        # Load models if not already loaded (already declared global)
         if processor_dima is None or model is None:
             processor_dima, model, device = load_ml_models()
+        # ... similar checks/loads for other models if needed ...
 
         # Process the file with the selected model
         if upload_type == 'image':
@@ -551,9 +557,12 @@ def analyze_file():
                 "reason": "News analysis model detected patterns consistent with fake news"
             }), 200
             
+        # Example return - replace with your actual processing logic return
+        return jsonify({"message": "Analysis successful", "type": upload_type}), 200
+            
     except Exception as e:
         print(f"Analysis error: {str(e)}")
-        return jsonify({"error": "Server error occurred"}), 500
+        return jsonify({"error": "Server error occurred during analysis"}), 500
 
 @app.route('/api/analyze-ai', methods=['POST'])
 def analyze_ai():
