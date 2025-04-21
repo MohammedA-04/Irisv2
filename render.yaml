@@ -1,0 +1,37 @@
+services:
+  # Backend API Service
+  - type: web
+    name: iris-deepfake-api
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: cd backend && pip install -r requirements-deploy.txt
+    startCommand: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+
+  # Frontend Web Application
+  - type: web
+    name: iris-deepfake-frontend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REACT_APP_API_URL
+        fromService:
+          name: iris-deepfake-api
+          type: web
+          property: url 
